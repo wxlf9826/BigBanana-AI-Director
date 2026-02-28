@@ -162,7 +162,7 @@ const ModelManagerTab: React.FC<ModelManagerTabProps> = ({ onConfigChange }) => 
               推荐使用 BigBanana API
             </h3>
             <p className="text-xs text-[var(--text-tertiary)] mb-3 leading-relaxed">
-              支持 GPT-5.1、Gemini-3、Veo 3.1、Sora-2 等多种模型，稳定快速，价格优惠。
+              支持 GPT-5 系列、Claude 4.6 / 4.5、Gemini 3.1 Pro Preview、Gemini-3、Veo 3.1、Sora-2 等多种模型，稳定快速，价格优惠。
               本开源项目由 BigBanana API 提供支持。
             </p>
             <div className="flex items-center gap-3">

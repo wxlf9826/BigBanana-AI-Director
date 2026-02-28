@@ -387,9 +387,13 @@ export const resetToDefault = (): void => {
  * 预定义的对话模型列表
  */
 export const AVAILABLE_CHAT_MODELS = [
-  { name: 'GPT-5.2', value: 'gpt-5.2', description: '最新版本，推荐使用' },
-  { name: 'GPT-5.1', value: 'gpt-5.1', description: '稳定版本' },
-  { name: 'GPT-4.1', value: 'gpt-41', description: '稳定版本' },
+  { name: 'GPT-5.2', value: 'gpt-5.2', description: '综合能力最强，适合复杂任务' },
+  { name: 'GPT-5.1', value: 'gpt-5.1', description: '旗舰通用模型，稳定可靠' },
+  { name: 'GPT-4.1', value: 'gpt-41', description: '高性价比，适合长文本处理' },
+  { name: 'Claude Sonnet 4.6', value: 'claude-sonnet-4-6', description: '速度与智能平衡，代码/Agent 友好' },
+  { name: 'Claude Opus 4.6', value: 'claude-opus-4-6-20260205', description: '复杂推理与高难任务优先' },
+  { name: 'Claude Sonnet 4.5', value: 'claude-sonnet-4-5-20250929', description: '均衡稳定，适合高频文本任务' },
+  { name: 'Gemini 3.1 Pro Preview', value: 'gemini-3.1-pro-preview', description: '多模态与超长上下文能力' },
 ];
 
 /**
