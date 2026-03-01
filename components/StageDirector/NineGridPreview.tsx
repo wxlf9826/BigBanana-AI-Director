@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Loader2, RefreshCw, Check, Grid3x3, AlertCircle, Image as ImageIcon, Crop, Edit2, Save, ArrowRight, Wand2, ImagePlus, Languages } from 'lucide-react';
 import { NineGridData, NineGridPanel, AspectRatio } from '../../types';
-import { NINE_GRID, resolveStoryboardGridLayout } from './constants';
+import { resolveStoryboardGridLayout } from './constants';
 
 interface NineGridPreviewProps {
   isOpen: boolean;
@@ -485,15 +485,9 @@ const NineGridPreview: React.FC<NineGridPreviewProps> = ({
                               type="text"
                               value={editForm.shotSize}
                               onChange={(e) => setEditForm(prev => ({ ...prev, shotSize: e.target.value }))}
-                              list="nine-grid-shot-size-suggestions"
                               placeholder="例如：中景"
                               className="w-full text-[10px] p-1.5 bg-[var(--bg-base)] border border-[var(--border-secondary)] rounded text-[var(--text-primary)] focus:border-[var(--accent)] outline-none"
                             />
-                            <datalist id="nine-grid-shot-size-suggestions">
-                              {NINE_GRID.defaultShotSizes.map((size) => (
-                                <option key={size} value={size} />
-                              ))}
-                            </datalist>
                           </div>
                           <div className="flex-1">
                             <label className="text-[8px] uppercase tracking-wider text-[var(--text-muted)] font-bold mb-0.5 block">机位</label>
@@ -501,15 +495,9 @@ const NineGridPreview: React.FC<NineGridPreviewProps> = ({
                               type="text"
                               value={editForm.cameraAngle}
                               onChange={(e) => setEditForm(prev => ({ ...prev, cameraAngle: e.target.value }))}
-                              list="nine-grid-camera-angle-suggestions"
                               placeholder="例如：平视"
                               className="w-full text-[10px] p-1.5 bg-[var(--bg-base)] border border-[var(--border-secondary)] rounded text-[var(--text-primary)] focus:border-[var(--accent)] outline-none"
                             />
-                            <datalist id="nine-grid-camera-angle-suggestions">
-                              {NINE_GRID.defaultCameraAngles.map((angle) => (
-                                <option key={angle} value={angle} />
-                              ))}
-                            </datalist>
                           </div>
                         </div>
                         <div>
