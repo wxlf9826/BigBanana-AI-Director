@@ -109,6 +109,22 @@ export interface NewApiTopupInfo {
   discount?: Record<string, number>;
 }
 
+export interface NewApiSubscriptionPlan {
+  id: number;
+  title?: string;
+  subtitle?: string;
+  price_amount?: number;
+  total_amount?: number;
+  upgrade_group?: string;
+  max_purchase_per_user?: number;
+  stripe_price_id?: string;
+  creem_product_id?: string;
+}
+
+export interface NewApiSubscriptionPlanItem {
+  plan?: NewApiSubscriptionPlan;
+}
+
 export interface NewApiToken {
   id: number;
   user_id: number;
@@ -239,23 +255,38 @@ const saveSession = (session: NewApiSession | null) => {
 };
 
 export const getNewApiEndpoint = (): string => {
-  if (typeof window === 'undefined') return normalizeEndpoint(DEFAULT_NEW_API_ENDPOINT);
-  const stored = window.localStorage.getItem(NEW_API_ENDPOINT_STORAGE_KEY);
-  return normalizeEndpoint(stored || DEFAULT_NEW_API_ENDPOINT);
+  const endpoint = normalizeEndpoint(DEFAULT_NEW_API_ENDPOINT);
+  if (typeof window !== 'undefined') {
+    const stored = window.localStorage.getItem(NEW_API_ENDPOINT_STORAGE_KEY);
+    if (stored && normalizeEndpoint(stored) !== endpoint) {
+      window.localStorage.removeItem(NEW_API_ENDPOINT_STORAGE_KEY);
+    }
+  }
+  return endpoint;
 };
 
 export const setNewApiEndpoint = (endpoint: string): string => {
-  const normalized = normalizeEndpoint(endpoint);
-  if (!normalized) {
-    throw new Error('EndPoint 不能为空');
-  }
   if (typeof window !== 'undefined') {
-    window.localStorage.setItem(NEW_API_ENDPOINT_STORAGE_KEY, normalized);
+    window.localStorage.removeItem(NEW_API_ENDPOINT_STORAGE_KEY);
   }
-  return normalized;
+  return getNewApiEndpoint();
 };
 
-export const getNewApiSession = (): NewApiSession | null => getStoredJson<NewApiSession>(NEW_API_SESSION_STORAGE_KEY);
+export const getNewApiSession = (): NewApiSession | null => {
+  const session = getStoredJson<NewApiSession>(NEW_API_SESSION_STORAGE_KEY);
+  if (!session) return null;
+
+  const endpoint = getNewApiEndpoint();
+  if (normalizeEndpoint(session.endpoint) !== endpoint) {
+    saveSession(null);
+    return null;
+  }
+
+  return {
+    ...session,
+    endpoint,
+  };
+};
 
 export const clearNewApiSession = (): void => {
   if (typeof window !== 'undefined') {
@@ -347,6 +378,11 @@ export const getNewApiTopupInfo = async (): Promise<NewApiTopupInfo> => {
   return unwrapEnvelope(payload);
 };
 
+export const getNewApiSubscriptionPlans = async (): Promise<NewApiSubscriptionPlanItem[]> => {
+  const payload = await proxyFetch<NewApiEnvelope<NewApiSubscriptionPlanItem[]>>('/api/new-api/subscription/plans');
+  return unwrapEnvelope(payload) || [];
+};
+
 export const requestNewApiAmount = async (amount: number): Promise<number> => {
   const payload = await proxyFetch<NewApiEnvelope<string | number>>('/api/new-api/amount', {
     method: 'POST',
@@ -360,6 +396,33 @@ export const requestNewApiPay = async (amount: number, paymentMethod: string): P
   const payload = await proxyFetch<NewApiEnvelope<Record<string, string>>>('/api/new-api/pay', {
     method: 'POST',
     body: JSON.stringify({ amount, payment_method: paymentMethod }),
+  });
+  return {
+    url: payload.url || '',
+    params: unwrapEnvelope(payload) || {},
+  };
+};
+
+export const requestNewApiSubscriptionStripePay = async (planId: number): Promise<{ pay_link?: string }> => {
+  const payload = await proxyFetch<NewApiEnvelope<{ pay_link?: string }>>('/api/new-api/subscription/stripe/pay', {
+    method: 'POST',
+    body: JSON.stringify({ plan_id: planId }),
+  });
+  return unwrapEnvelope(payload) || {};
+};
+
+export const requestNewApiSubscriptionCreemPay = async (planId: number): Promise<{ checkout_url?: string }> => {
+  const payload = await proxyFetch<NewApiEnvelope<{ checkout_url?: string }>>('/api/new-api/subscription/creem/pay', {
+    method: 'POST',
+    body: JSON.stringify({ plan_id: planId }),
+  });
+  return unwrapEnvelope(payload) || {};
+};
+
+export const requestNewApiSubscriptionEpayPay = async (planId: number, paymentMethod: string): Promise<{ url: string; params: Record<string, string> }> => {
+  const payload = await proxyFetch<NewApiEnvelope<Record<string, string>>>('/api/new-api/subscription/epay/pay', {
+    method: 'POST',
+    body: JSON.stringify({ plan_id: planId, payment_method: paymentMethod }),
   });
   return {
     url: payload.url || '',
@@ -429,4 +492,3 @@ export const getNewApiLogsStat = async (query: Omit<NewApiLogsQuery, 'page' | 'p
   })}`);
   return unwrapEnvelope(payload);
 };
-

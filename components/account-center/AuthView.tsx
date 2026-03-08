@@ -1,5 +1,5 @@
 import React from 'react';
-import { Loader2, LogIn, Mail, Shield, UserPlus } from 'lucide-react';
+import { Loader2, LogIn, Mail, UserPlus } from 'lucide-react';
 import { NewApiStatus } from '../../services/newApiService';
 import { AuthTab, LoginFormState, RegisterFormState } from './internal';
 import { SectionCard } from './ui';
@@ -99,7 +99,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
 
             {status?.turnstile_check && (
               <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
-                当前 EndPoint 开启了 Turnstile，本页尚未嵌入该验证组件。建议先在 `new-api` 原站关闭 Turnstile，或后续再接入当前站点。
+                当前账号系统启用了额外安全验证，本页暂不支持完成该步骤，请联系管理员处理。
               </div>
             )}
           </div>
@@ -174,32 +174,6 @@ export const AuthView: React.FC<AuthViewProps> = ({
             </button>
           </div>
         )}
-      </SectionCard>
-
-      <SectionCard title="为什么这样更简单" description="把账号操作留在当前站点，不再跳出你的创作工作流。">
-        <div className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-4">
-            <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--accent-bg)] text-[var(--accent-text)]">
-              <LogIn className="h-5 w-5" />
-            </div>
-            <div className="mt-4 font-semibold">登录不跳站</div>
-            <div className="mt-2 text-sm leading-6 text-[var(--text-tertiary)]">注册、登录、二次验证都在当前页面完成，心智路径更短。</div>
-          </div>
-          <div className="rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-4">
-            <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--accent-bg)] text-[var(--accent-text)]">
-              <Shield className="h-5 w-5" />
-            </div>
-            <div className="mt-4 font-semibold">会话由本站托管</div>
-            <div className="mt-2 text-sm leading-6 text-[var(--text-tertiary)]">浏览器只保留本站会话，避免用户频繁在两个系统间切换。</div>
-          </div>
-          <div className="rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-4">
-            <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--accent-bg)] text-[var(--accent-text)]">
-              <Mail className="h-5 w-5" />
-            </div>
-            <div className="mt-4 font-semibold">注册流程更可控</div>
-            <div className="mt-2 text-sm leading-6 text-[var(--text-tertiary)]">如果启用了邮箱验证或 2FA，用户也能在这里得到清晰的下一步提示。</div>
-          </div>
-        </div>
       </SectionCard>
     </div>
   );

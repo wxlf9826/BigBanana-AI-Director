@@ -184,53 +184,59 @@ const Dashboard: React.FC<Props> = ({ onOpenProject, onShowOnboarding, onShowMod
               <span className="text-[var(--text-muted)] text-sm font-mono tracking-widest uppercase">Projects Database</span>
             </h1>
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setShowGroupQr(true)}
-              className="group flex items-center gap-2 px-4 py-3 border border-[var(--border-primary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:border-[var(--border-secondary)] transition-colors"
-              title="加入交流群"
-            >
-              <span className="font-medium text-xs tracking-widest uppercase">交流群</span>
-            </button>
-            {onShowOnboarding && (
-              <button 
-                onClick={onShowOnboarding}
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={() => setShowGroupQr(true)}
                 className="group flex items-center gap-2 px-4 py-3 border border-[var(--border-primary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:border-[var(--border-secondary)] transition-colors"
-                title="查看新手引导"
+                title="加入交流群"
               >
-                <HelpCircle className="w-4 h-4" />
-                <span className="font-medium text-xs tracking-widest uppercase">帮助</span>
+                <span className="font-medium text-xs tracking-widest uppercase">交流群</span>
               </button>
-            )}
-            <button
-              onClick={() => navigate('/account')}
-              className="group flex items-center gap-2 px-4 py-3 border border-[var(--border-primary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:border-[var(--border-secondary)] transition-colors"
-            >
-              <User className="w-4 h-4" />
-              <span className="font-medium text-xs tracking-widest uppercase">账号中心</span>
-            </button>
-            <button
-              onClick={() => setShowSettingsModal(true)}
-              className="group flex items-center gap-2 px-4 py-3 border border-[var(--border-primary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:border-[var(--border-secondary)] transition-colors"
-            >
-              <Settings className="w-4 h-4" />
-              <span className="font-medium text-xs tracking-widest uppercase">系统设置</span>
-            </button>
-            <button
-              onClick={toggleTheme}
-              className="group flex items-center gap-2 px-4 py-3 border border-[var(--border-primary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:border-[var(--border-secondary)] transition-colors"
-              title={theme === 'dark' ? '切换亮色主题' : '切换暗色主题'}
-            >
-              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-              <span className="font-medium text-xs tracking-widest uppercase">{theme === 'dark' ? '亮色' : '暗色'}</span>
-            </button>
-            <button 
-              onClick={handleCreate}
-              className="group flex items-center gap-3 px-6 py-3 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] hover:bg-[var(--btn-primary-hover)] transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              <span className="font-bold text-xs tracking-widest uppercase">新建项目</span>
-            </button>
+              {onShowOnboarding && (
+                <button 
+                  onClick={onShowOnboarding}
+                  className="group flex items-center gap-2 px-4 py-3 border border-[var(--border-primary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:border-[var(--border-secondary)] transition-colors"
+                  title="查看新手引导"
+                >
+                  <HelpCircle className="w-4 h-4" />
+                  <span className="font-medium text-xs tracking-widest uppercase">帮助</span>
+                </button>
+              )}
+              <button
+                onClick={() => setShowSettingsModal(true)}
+                className="group flex items-center gap-2 px-4 py-3 border border-[var(--border-primary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:border-[var(--border-secondary)] transition-colors"
+              >
+                <Settings className="w-4 h-4" />
+                <span className="font-medium text-xs tracking-widest uppercase">系统设置</span>
+              </button>
+              <button
+                onClick={toggleTheme}
+                className="group flex items-center gap-2 px-4 py-3 border border-[var(--border-primary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:border-[var(--border-secondary)] transition-colors"
+                title={theme === 'dark' ? '切换亮色主题' : '切换暗色主题'}
+              >
+                {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                <span className="font-medium text-xs tracking-widest uppercase">{theme === 'dark' ? '亮色' : '暗色'}</span>
+              </button>
+            </div>
+
+            <div className="flex items-center gap-3 border-l border-[var(--border-primary)] pl-3 md:pl-4">
+              <button 
+                onClick={handleCreate}
+                className="group flex items-center gap-3 px-6 py-3 bg-[var(--btn-primary-bg)] text-[var(--btn-primary-text)] hover:bg-[var(--btn-primary-hover)] transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                <span className="font-bold text-xs tracking-widest uppercase">新建项目</span>
+              </button>
+              <button
+                onClick={() => navigate('/account')}
+                className="group flex items-center gap-2 px-5 py-3 border border-[var(--accent-border)] text-[var(--text-primary)] hover:border-[var(--accent)] hover:bg-[var(--accent-bg)] transition-colors"
+                title="打开账号中心"
+              >
+                <User className="w-4 h-4" />
+                <span className="font-medium text-xs tracking-widest uppercase">账号中心</span>
+              </button>
+            </div>
           </div>
         </header>
 
@@ -386,20 +392,6 @@ const Dashboard: React.FC<Props> = ({ onOpenProject, onShowOnboarding, onShowMod
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <button
-                onClick={() => {
-                  setShowSettingsModal(false);
-                  navigate('/account');
-                }}
-                className="p-4 border border-[var(--border-primary)] hover:border-[var(--border-secondary)] bg-[var(--bg-primary)] hover:bg-[var(--bg-secondary)] transition-colors text-left"
-              >
-                <div className="flex items-center gap-2 text-[var(--text-primary)] text-sm font-bold">
-                  <User className="w-4 h-4 text-[var(--accent-text)]" />
-                  账号中心
-                </div>
-                <div className="text-[10px] text-[var(--text-tertiary)] font-mono mt-2">登录、注册、充值、令牌与日志</div>
-              </button>
-
               {onShowModelConfig && (
                 <button
                   onClick={() => {

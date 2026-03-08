@@ -550,6 +550,11 @@ export const createNewApiProxyHandler = () => {
         return;
       }
 
+      if (pathname === '/api/new-api/subscription/plans' && req.method === 'GET') {
+        await proxyAuthed(req, res, '/api/subscription/plans');
+        return;
+      }
+
       if (pathname === '/api/new-api/amount' && req.method === 'POST') {
         await proxyAuthed(req, res, '/api/user/amount', { method: 'POST', body });
         return;
@@ -557,6 +562,21 @@ export const createNewApiProxyHandler = () => {
 
       if (pathname === '/api/new-api/pay' && req.method === 'POST') {
         await proxyAuthed(req, res, '/api/user/pay', { method: 'POST', body });
+        return;
+      }
+
+      if (pathname === '/api/new-api/subscription/stripe/pay' && req.method === 'POST') {
+        await proxyAuthed(req, res, '/api/subscription/stripe/pay', { method: 'POST', body });
+        return;
+      }
+
+      if (pathname === '/api/new-api/subscription/creem/pay' && req.method === 'POST') {
+        await proxyAuthed(req, res, '/api/subscription/creem/pay', { method: 'POST', body });
+        return;
+      }
+
+      if (pathname === '/api/new-api/subscription/epay/pay' && req.method === 'POST') {
+        await proxyAuthed(req, res, '/api/subscription/epay/pay', { method: 'POST', body });
         return;
       }
 

@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Activity, ArrowLeft, CreditCard, Key, Loader2, Power, RefreshCcw, Server, Shield, User } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Activity, ArrowLeft, CreditCard, Key, Loader2, Power, RefreshCcw, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAlert } from './GlobalAlert';
 import { setGlobalApiKey } from '../services/aiService';
@@ -8,6 +8,7 @@ import {
   NewApiLogStats,
   NewApiSession,
   NewApiStatus,
+  NewApiSubscriptionPlanItem,
   NewApiToken,
   NewApiTopupInfo,
   bootstrapNewApiSession,
@@ -20,6 +21,7 @@ import {
   getNewApiLogsStat,
   getNewApiSession,
   getNewApiSelf,
+  getNewApiSubscriptionPlans,
   getNewApiTokens,
   getNewApiTopupInfo,
   loginNewApiUser,
@@ -28,8 +30,10 @@ import {
   registerNewApiUser,
   requestNewApiAmount,
   requestNewApiPay,
+  requestNewApiSubscriptionCreemPay,
+  requestNewApiSubscriptionEpayPay,
+  requestNewApiSubscriptionStripePay,
   sendNewApiVerificationCode,
-  setNewApiEndpoint,
   updateNewApiTokenStatus,
   verifyNewApiTwoFactor,
 } from '../services/newApiService';
@@ -49,7 +53,7 @@ import {
   TOKEN_STATUS_DISABLED,
   TOKEN_STATUS_ENABLED,
 } from './account-center/utils';
-import { cardClassName, SectionCard, StatCard } from './account-center/ui';
+import { cardClassName, SectionCard } from './account-center/ui';
 import { TokensPanel } from './account-center/TokensPanel';
 
 const createDefaultTokenForm = (): TokenFormState => ({
@@ -69,9 +73,8 @@ const ACCOUNT_TABS = [
 const NewApiConsole: React.FC = () => {
   const navigate = useNavigate();
   const { showAlert } = useAlert();
+  const activeEndpoint = getNewApiEndpoint();
 
-  const [endpointInput, setEndpointInput] = useState(getNewApiEndpoint());
-  const [activeEndpoint, setActiveEndpoint] = useState(getNewApiEndpoint());
   const [status, setStatus] = useState<NewApiStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState(true);
 
@@ -93,7 +96,11 @@ const NewApiConsole: React.FC = () => {
   const [topupAmount, setTopupAmount] = useState('10');
   const [redeemCode, setRedeemCode] = useState('');
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
+  const [estimateLoading, setEstimateLoading] = useState(false);
+  const [estimateError, setEstimateError] = useState<string | null>(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
+  const [subscriptionPlans, setSubscriptionPlans] = useState<NewApiSubscriptionPlanItem[]>([]);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
 
   const [tokens, setTokens] = useState<NewApiToken[]>([]);
   const [tokensLoading, setTokensLoading] = useState(false);
@@ -121,16 +128,22 @@ const NewApiConsole: React.FC = () => {
   const [topupLoaded, setTopupLoaded] = useState(false);
   const [tokensLoaded, setTokensLoaded] = useState(false);
   const [logsLoaded, setLogsLoaded] = useState(false);
+  const estimateRequestIdRef = useRef(0);
 
   const sessionUserId = session?.userId ?? null;
   const topupMethods = useMemo(() => normalizePayMethods(topupInfo?.pay_methods).filter((item) => item?.name && item?.type), [topupInfo]);
 
   const resetWorkspaceState = useCallback(() => {
+    estimateRequestIdRef.current += 1;
     setTopupInfo(null);
     setPayableAmount(null);
     setTopupAmount('10');
     setRedeemCode('');
     setSelectedPaymentMethod('');
+    setEstimateLoading(false);
+    setEstimateError(null);
+    setSubscriptionPlans([]);
+    setSubscriptionLoading(false);
     setTokens([]);
     setTokenPage(1);
     setTokenTotal(0);
@@ -182,11 +195,23 @@ const NewApiConsole: React.FC = () => {
 
   const loadTopupInfo = useCallback(async () => {
     setTopupInfoLoading(true);
+    setSubscriptionLoading(true);
     try {
-      const info = await getNewApiTopupInfo();
+      const [topupInfoResult, subscriptionPlansResult] = await Promise.allSettled([
+        getNewApiTopupInfo(),
+        getNewApiSubscriptionPlans(),
+      ]);
+
+      if (topupInfoResult.status === 'rejected') {
+        throw topupInfoResult.reason;
+      }
+
+      const info = topupInfoResult.value;
       const methods = normalizePayMethods(info.pay_methods).filter((item) => item?.name && item?.type);
+      const defaultTopupMethod = methods.find((item) => !['stripe', 'creem'].includes(item.type))?.type || methods[0]?.type || '';
       setTopupInfo(info);
-      setSelectedPaymentMethod((current) => current || methods[0]?.type || '');
+      setSubscriptionPlans(subscriptionPlansResult.status === 'fulfilled' ? (subscriptionPlansResult.value || []).filter((item) => item?.plan?.id) : []);
+      setSelectedPaymentMethod((current) => current || defaultTopupMethod);
       if ((info.amount_options?.length || 0) > 0) {
         setTopupAmount((current) => current || String(info.amount_options?.[0] ?? '10'));
       }
@@ -196,6 +221,7 @@ const NewApiConsole: React.FC = () => {
       throw error;
     } finally {
       setTopupInfoLoading(false);
+      setSubscriptionLoading(false);
     }
   }, [showAlert]);
 
@@ -263,19 +289,50 @@ const NewApiConsole: React.FC = () => {
     }
   }, [sessionUserId, activeTab, profileLoaded, topupLoaded, tokensLoaded, logsLoaded, refreshProfile, loadTopupInfo, loadTokens, loadLogs, resetWorkspaceState]);
 
-  const handleSaveEndpoint = async () => {
-    try {
-      const nextEndpoint = setNewApiEndpoint(endpointInput);
-      clearNewApiSession();
-      resetWorkspaceState();
-      setSession(null);
-      setNeedsTwoFactor(false);
-      setActiveEndpoint(nextEndpoint);
-      showAlert('EndPoint 已保存，登录态已按新地址重新初始化。', { type: 'success' });
-    } catch (error) {
-      showAlert(error instanceof Error ? error.message : '保存 EndPoint 失败', { type: 'error' });
+  useEffect(() => {
+    if (!sessionUserId || activeTab !== 'billing' || !topupLoaded) {
+      estimateRequestIdRef.current += 1;
+      setEstimateLoading(false);
+      return;
     }
-  };
+
+    const amountValue = Number(topupAmount);
+    const requestId = estimateRequestIdRef.current + 1;
+    estimateRequestIdRef.current = requestId;
+
+    if (!Number.isFinite(amountValue) || amountValue <= 0) {
+      setEstimateLoading(false);
+      setEstimateError(null);
+      setPayableAmount(null);
+      return;
+    }
+
+    setEstimateLoading(true);
+    setEstimateError(null);
+    setPayableAmount(null);
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const estimatedAmount = await requestNewApiAmount(amountValue);
+        if (estimateRequestIdRef.current !== requestId) {
+          return;
+        }
+        setPayableAmount(estimatedAmount);
+      } catch {
+        if (estimateRequestIdRef.current !== requestId) {
+          return;
+        }
+        setPayableAmount(null);
+        setEstimateError('暂时无法获取预估金额，请以支付页显示为准。');
+      } finally {
+        if (estimateRequestIdRef.current === requestId) {
+          setEstimateLoading(false);
+        }
+      }
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [activeTab, sessionUserId, topupAmount, topupLoaded]);
 
   const handleLogin = async () => {
     if (!loginForm.username.trim() || !loginForm.password.trim()) {
@@ -283,7 +340,7 @@ const NewApiConsole: React.FC = () => {
       return;
     }
     if (status?.turnstile_check) {
-      showAlert('当前 EndPoint 开启了 Turnstile 校验，本页暂未接入该组件，请先在 new-api 原站登录或关闭 Turnstile。', { type: 'warning' });
+      showAlert('当前账号系统启用了额外安全验证，本页暂不支持，请联系管理员处理。', { type: 'warning' });
       return;
     }
     setAuthLoading(true);
@@ -338,11 +395,11 @@ const NewApiConsole: React.FC = () => {
       return;
     }
     if (status?.email_verification && (!registerForm.email.trim() || !registerForm.verificationCode.trim())) {
-      showAlert('当前 EndPoint 开启了邮箱验证，请填写邮箱和验证码。', { type: 'warning' });
+      showAlert('当前注册流程需要邮箱验证，请填写邮箱和验证码。', { type: 'warning' });
       return;
     }
     if (status?.turnstile_check) {
-      showAlert('当前 EndPoint 开启了 Turnstile 校验，本页暂未接入该组件，请先在 new-api 原站注册或关闭 Turnstile。', { type: 'warning' });
+      showAlert('当前账号系统启用了额外安全验证，本页暂不支持，请联系管理员处理。', { type: 'warning' });
       return;
     }
     setAuthLoading(true);
@@ -370,7 +427,7 @@ const NewApiConsole: React.FC = () => {
       return;
     }
     if (status?.turnstile_check) {
-      showAlert('当前 EndPoint 开启了 Turnstile 校验，本页暂未接入该组件。', { type: 'warning' });
+      showAlert('当前账号系统启用了额外安全验证，本页暂不支持发送验证码，请联系管理员处理。', { type: 'warning' });
       return;
     }
     setVerificationLoading(true);
@@ -400,22 +457,6 @@ const NewApiConsole: React.FC = () => {
     }
   };
 
-  const handleEstimateAmount = async () => {
-    const amountValue = Number(topupAmount);
-    if (!Number.isFinite(amountValue) || amountValue <= 0) {
-      showAlert('请输入正确的充值数量。', { type: 'warning' });
-      return;
-    }
-    setPaymentLoading(true);
-    try {
-      setPayableAmount(await requestNewApiAmount(amountValue));
-    } catch (error) {
-      showAlert(error instanceof Error ? error.message : '获取支付金额失败', { type: 'error' });
-    } finally {
-      setPaymentLoading(false);
-    }
-  };
-
   const handleOnlinePay = async () => {
     const amountValue = Number(topupAmount);
     if (!selectedPaymentMethod) {
@@ -434,6 +475,36 @@ const NewApiConsole: React.FC = () => {
       showAlert('支付页面已在新窗口中拉起。支付完成后可点击刷新余额。', { type: 'success' });
     } catch (error) {
       showAlert(error instanceof Error ? error.message : '拉起支付失败', { type: 'error' });
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
+  const handleSubscriptionPay = async (planId: number, paymentMethod: string) => {
+    if (!planId) {
+      showAlert('订阅套餐配置不完整。', { type: 'warning' });
+      return;
+    }
+
+    setPaymentLoading(true);
+    try {
+      if (paymentMethod === 'stripe') {
+        const { pay_link } = await requestNewApiSubscriptionStripePay(planId);
+        if (!pay_link) throw new Error('Stripe 支付链接为空');
+        window.open(pay_link, '_blank', 'noopener,noreferrer');
+      } else if (paymentMethod === 'creem') {
+        const { checkout_url } = await requestNewApiSubscriptionCreemPay(planId);
+        if (!checkout_url) throw new Error('Creem 支付链接为空');
+        window.open(checkout_url, '_blank', 'noopener,noreferrer');
+      } else {
+        const { url, params } = await requestNewApiSubscriptionEpayPay(planId, paymentMethod);
+        if (!url) throw new Error('支付链接为空');
+        submitPaymentForm(url, params);
+      }
+
+      showAlert('订阅支付页面已在新窗口中拉起。', { type: 'success' });
+    } catch (error) {
+      showAlert(error instanceof Error ? error.message : '拉起订阅支付失败', { type: 'error' });
     } finally {
       setPaymentLoading(false);
     }
@@ -539,12 +610,12 @@ const NewApiConsole: React.FC = () => {
             </button>
             <div>
               <h1 className="text-3xl font-bold tracking-tight">账号中心</h1>
-              <p className="mt-2 text-sm text-[var(--text-tertiary)]">把登录、充值、令牌和日志拆成独立任务模块，让用户每次只完成一件事。</p>
+              <p className="mt-2 text-sm text-[var(--text-tertiary)]">在这里管理登录、余额、令牌和使用记录。</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-3">
             <button onClick={() => void loadStatusAndSession(activeEndpoint)} className="inline-flex items-center gap-2 rounded-2xl border border-[var(--border-primary)] px-4 py-2.5 text-sm transition-colors hover:border-[var(--border-secondary)] hover:bg-[var(--bg-hover)]">
-              {statusLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />} 刷新状态
+              {statusLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />} 刷新数据
             </button>
             {session && (
               <button onClick={() => void handleLogout()} disabled={authLoading} className="inline-flex items-center gap-2 rounded-2xl border border-rose-500/30 px-4 py-2.5 text-sm text-rose-400 transition-colors hover:bg-rose-500/10 disabled:opacity-60">
@@ -555,36 +626,7 @@ const NewApiConsole: React.FC = () => {
         </header>
 
         {!session ? (
-          <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-            <div className="space-y-6">
-              <SectionCard title="先连接你的计费后端" description="账号能力已经与当前项目融合，但 EndPoint 仍然保持可配置，方便你切换不同的 new-api 实例。">
-                <div className="space-y-4">
-                  <div className="flex flex-col gap-3 lg:flex-row">
-                    <input value={endpointInput} onChange={(event) => setEndpointInput(event.target.value)} placeholder="https://api.antsk.cn" className="w-full rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] px-4 py-3 font-mono outline-none transition-colors focus:border-[var(--accent)]" />
-                    <button onClick={() => void handleSaveEndpoint()} className="rounded-2xl bg-[var(--btn-primary-bg)] px-5 py-3 text-sm font-medium text-[var(--btn-primary-text)] transition-colors hover:bg-[var(--btn-primary-hover)]">保存并连接</button>
-                  </div>
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <StatCard label="System" value={status?.system_name || '未连接'} hint="当前接入的服务实例" />
-                    <StatCard label="Version" value={status?.version || '—'} hint="用于确认后端版本" />
-                    <StatCard label="注册方式" value={status?.email_verification ? '邮箱验证码' : '直接注册'} hint={status?.turnstile_check ? '当前开启 Turnstile' : '当前未开启 Turnstile'} />
-                  </div>
-                </div>
-              </SectionCard>
-              <SectionCard title="接入逻辑说明" description="从产品体验上，用户不应该被迫理解后端控制台。">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-4">
-                    <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--accent-bg)] text-[var(--accent-text)]"><Shield className="h-5 w-5" /></div>
-                    <div className="mt-4 font-semibold">同源代理托管会话</div>
-                    <div className="mt-2 text-sm leading-6 text-[var(--text-tertiary)]">登录成功后，浏览器只保存本站会话，不需要再跳去 new-api 控制台完成后续操作。</div>
-                  </div>
-                  <div className="rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-4">
-                    <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--accent-bg)] text-[var(--accent-text)]"><Server className="h-5 w-5" /></div>
-                    <div className="mt-4 font-semibold">EndPoint 独立配置</div>
-                    <div className="mt-2 text-sm leading-6 text-[var(--text-tertiary)]">把连接配置和账号任务拆开后，普通用户只需关注登录与使用，高级用户再处理实例切换。</div>
-                  </div>
-                </div>
-              </SectionCard>
-            </div>
+          <div className="mx-auto max-w-2xl">
             <AuthView
               status={status}
               authTab={authTab}
@@ -608,10 +650,10 @@ const NewApiConsole: React.FC = () => {
               <div className={`${cardClassName} p-5`}>
                 <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--accent-bg)] text-[var(--accent-text)]"><User className="h-6 w-6" /></div>
                 <div className="mt-4 text-lg font-semibold">{session.username}</div>
-                <div className="mt-1 text-sm text-[var(--text-tertiary)]">当前账号已接入项目内工作流</div>
+                <div className="mt-1 text-sm text-[var(--text-tertiary)]">已登录，可直接管理余额、令牌与日志</div>
                 <div className="mt-5 grid gap-3">
                   <div className="rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] px-4 py-3"><div className="text-xs uppercase tracking-[0.24em] text-[var(--text-tertiary)]">余额</div><div className="mt-2 text-xl font-semibold">{formatQuota(session.user?.quota, status)}</div></div>
-                  <div className="rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] px-4 py-3"><div className="text-xs uppercase tracking-[0.24em] text-[var(--text-tertiary)]">EndPoint</div><div className="mt-2 break-all text-sm text-[var(--text-secondary)]">{activeEndpoint}</div></div>
+                  <div className="rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] px-4 py-3"><div className="text-xs uppercase tracking-[0.24em] text-[var(--text-tertiary)]">用户组</div><div className="mt-2 text-sm font-medium text-[var(--text-secondary)]">{session.user?.group || '默认分组'}</div></div>
                 </div>
               </div>
               <div className={`${cardClassName} p-3`}>
@@ -630,11 +672,11 @@ const NewApiConsole: React.FC = () => {
 
             <main className="min-w-0 space-y-6">
               <SectionCard title={currentTab.label} description={currentTab.description}>
-                <div className="text-sm leading-6 text-[var(--text-tertiary)]">现在每个模块只承载一个明确任务：总览负责认知、充值负责到账、令牌负责密钥管理、日志负责复盘与排错。</div>
+                <div className="text-sm leading-6 text-[var(--text-tertiary)]">选择左侧模块，即可完成充值、密钥管理和用量查询。</div>
               </SectionCard>
 
-              {activeTab === 'overview' && <OverviewPanel status={status} session={session} endpointInput={endpointInput} setEndpointInput={setEndpointInput} statusLoading={statusLoading} walletLoading={walletLoading} onSaveEndpoint={handleSaveEndpoint} onRefreshProfile={refreshProfile} onTabChange={setActiveTab} />}
-              {activeTab === 'billing' && <BillingPanel status={status} session={session} topupInfo={topupInfo} topupInfoLoading={topupInfoLoading} walletLoading={walletLoading} paymentLoading={paymentLoading} topupMethods={topupMethods} selectedPaymentMethod={selectedPaymentMethod} setSelectedPaymentMethod={setSelectedPaymentMethod} topupAmount={topupAmount} setTopupAmount={setTopupAmount} payableAmount={payableAmount} redeemCode={redeemCode} setRedeemCode={setRedeemCode} onEstimateAmount={handleEstimateAmount} onOnlinePay={handleOnlinePay} onRedeemCode={handleRedeemCode} onRefreshProfile={refreshProfile} />}
+              {activeTab === 'overview' && <OverviewPanel status={status} session={session} walletLoading={walletLoading} onRefreshProfile={refreshProfile} onTabChange={setActiveTab} />}
+              {activeTab === 'billing' && <BillingPanel status={status} session={session} topupInfo={topupInfo} topupInfoLoading={topupInfoLoading} walletLoading={walletLoading} paymentLoading={paymentLoading} estimateLoading={estimateLoading} estimateError={estimateError} topupMethods={topupMethods} subscriptionPlans={subscriptionPlans} subscriptionLoading={subscriptionLoading} selectedPaymentMethod={selectedPaymentMethod} setSelectedPaymentMethod={setSelectedPaymentMethod} topupAmount={topupAmount} setTopupAmount={setTopupAmount} payableAmount={payableAmount} redeemCode={redeemCode} setRedeemCode={setRedeemCode} onOnlinePay={handleOnlinePay} onSubscriptionPay={handleSubscriptionPay} onRedeemCode={handleRedeemCode} onRefreshProfile={refreshProfile} />}
               {activeTab === 'tokens' && <TokensPanel status={status} tokens={tokens} tokensLoading={tokensLoading} tokenPage={tokenPage} tokenTotal={tokenTotal} tokenPageSize={tokenPageSize} createTokenLoading={createTokenLoading} tokenForm={tokenForm} setTokenForm={setTokenForm} onCreateToken={handleCreateToken} onRefreshTokens={() => loadTokens(tokenPage)} onPageChange={loadTokens} onToggleToken={handleToggleToken} onDeleteToken={handleDeleteToken} onCopyToken={handleCopyToken} onUseTokenInProject={handleUseTokenInProject} />}
               {activeTab === 'logs' && <LogsPanel status={status} logs={logs} logsLoading={logsLoading} logStats={logStats} logType={logType} setLogType={setLogType} logStart={logStart} setLogStart={setLogStart} logEnd={logEnd} setLogEnd={setLogEnd} logTokenName={logTokenName} setLogTokenName={setLogTokenName} logModelName={logModelName} setLogModelName={setLogModelName} logPage={logPage} logPageSize={logPageSize} logTotal={logTotal} onSearch={() => loadLogs(1)} onPageChange={loadLogs} />}
             </main>
