@@ -43,16 +43,25 @@ interface BillingPanelProps {
 
 const normalizeDisplayAmount = (value: number) => (Number.isInteger(value) ? String(value) : value.toFixed(2));
 
-const extractTitleAmount = (title: string | undefined, unitPattern: RegExp): number | null => {
-  const match = String(title || '').match(unitPattern);
-  if (!match) return null;
-  const value = Number(match[1]);
-  return Number.isFinite(value) && value > 0 ? value : null;
-};
+const RMB_PER_USD_BENCHMARK = 7;
 
 const formatRmbAmount = (value: number | null | undefined) => {
   if (!Number.isFinite(Number(value)) || Number(value) <= 0) return '待配置';
   return `¥${normalizeDisplayAmount(Number(value))}`;
+};
+
+const getPlanCurrentRmbPrice = (plan: NewApiSubscriptionPlan | undefined) => {
+  const value = Number(plan?.price_amount ?? 0);
+  return Number.isFinite(value) && value > 0 ? value : null;
+};
+
+const getPlanQuotaUsd = (plan: NewApiSubscriptionPlan | undefined, status: NewApiStatus | null) => {
+  const totalAmount = Number(plan?.total_amount ?? 0);
+  if (!Number.isFinite(totalAmount) || totalAmount <= 0) return null;
+
+  const quotaPerUnit = getQuotaPerUnit(status);
+  const usdQuota = totalAmount / quotaPerUnit;
+  return Number.isFinite(usdQuota) && usdQuota > 0 ? usdQuota : null;
 };
 
 const formatUsdQuotaValue = (quota: number | undefined, status: NewApiStatus | null) => {
@@ -63,14 +72,24 @@ const formatUsdQuotaValue = (quota: number | undefined, status: NewApiStatus | n
 };
 
 const formatPlanQuotaSummary = (plan: NewApiSubscriptionPlan | undefined, status: NewApiStatus | null) => {
-  const titleQuota = extractTitleAmount(plan?.title, /(\d+(?:\.\d+)?)\s*(?:美金(?:额度)?|美元(?:额度)?|USD|\$)/i);
-  if (titleQuota !== null) {
-    return `$${normalizeDisplayAmount(titleQuota)} 美金额度`;
-  }
+  const usdQuota = getPlanQuotaUsd(plan, status);
+  if (usdQuota === null) return '不限';
+  return `$${normalizeDisplayAmount(usdQuota)} 美金额度`;
+};
 
-  const totalAmount = Number(plan?.total_amount || 0);
-  if (!Number.isFinite(totalAmount) || totalAmount <= 0) return '不限';
-  return `${formatUsdQuotaValue(totalAmount, status)} 美金额度`;
+const getPlanOriginalRmbPrice = (plan: NewApiSubscriptionPlan | undefined, status: NewApiStatus | null) => {
+  const usdQuota = getPlanQuotaUsd(plan, status);
+  if (usdQuota === null) return null;
+  return usdQuota * RMB_PER_USD_BENCHMARK;
+};
+
+const getPlanDiscountText = (plan: NewApiSubscriptionPlan | undefined, status: NewApiStatus | null) => {
+  const currentRmbPrice = getPlanCurrentRmbPrice(plan);
+  const originalRmbPrice = getPlanOriginalRmbPrice(plan, status);
+  if (currentRmbPrice === null || originalRmbPrice === null || originalRmbPrice <= 0) return null;
+
+  const discount = (currentRmbPrice / originalRmbPrice) * 10;
+  return `${discount.toFixed(1)} 折`;
 };
 
 const getTopupDiscountValue = (discountMap: Record<string, number> | undefined, amount: number | string) => {
@@ -120,31 +139,8 @@ const formatTopupDiscountLabel = (discount: number | null) => {
   return `${normalizeDisplayAmount(Number(foldValue.toFixed(2)))}折`;
 };
 
-const getCurrencySymbol = (currency?: string, fallback = '￥') => {
-  switch (String(currency || '').toUpperCase()) {
-    case 'USD':
-      return '$';
-    case 'CNY':
-    case 'RMB':
-      return '¥';
-    case 'EUR':
-      return '€';
-    default:
-      return fallback;
-  }
-};
-
 const formatSubscriptionPrice = (plan: NewApiSubscriptionPlan | undefined, status: NewApiStatus | null) => {
-  const titlePrice = extractTitleAmount(plan?.title, /(\d+(?:\.\d+)?)\s*元/);
-  if (titlePrice !== null) return formatRmbAmount(titlePrice);
-
-  const value = Number(plan?.price_amount ?? 0);
-  if (!Number.isFinite(value) || value <= 0) return '待配置';
-  const symbol = getCurrencySymbol(plan?.currency, status?.custom_currency_symbol || '￥');
-  if (symbol === '$' && /元/.test(String(plan?.title || ''))) {
-    return formatRmbAmount(value);
-  }
-  return `${symbol}${normalizeDisplayAmount(value)}`;
+  return formatRmbAmount(getPlanCurrentRmbPrice(plan));
 };
 
 const formatSubscriptionDuration = (plan: NewApiSubscriptionPlan | undefined) => {
@@ -186,7 +182,7 @@ const formatSubscriptionResetPeriod = (plan: NewApiSubscriptionPlan | undefined)
 
 const formatPlanLimit = (limit: number | undefined) => {
   const value = Number(limit ?? 0);
-  return Number.isFinite(value) && value > 0 ? `限购 ${value}` : null;
+  return Number.isFinite(value) && value > 0 ? `每月限购 ${value}` : null;
 };
 
 const formatBillingPreference = (value: string) => {
@@ -410,6 +406,8 @@ export const BillingPanel: React.FC<BillingPanelProps> = ({
                     const reachedLimit = limit > 0 && count >= limit;
                     const isRecommended = index === 0 && subscriptionPlans.length > 1;
                     const resetText = formatSubscriptionResetPeriod(plan);
+                    const originalRmbPrice = getPlanOriginalRmbPrice(plan, status);
+                    const discountText = getPlanDiscountText(plan, status);
                     const availableMethods = [
                       ...(plan.stripe_price_id && topupInfo?.enable_stripe_topup ? [{ key: 'stripe', label: 'Stripe' }] : []),
                       ...(plan.creem_product_id && topupInfo?.enable_creem_topup ? [{ key: 'creem', label: 'Creem' }] : []),
@@ -434,6 +432,13 @@ export const BillingPanel: React.FC<BillingPanelProps> = ({
                         </div>
 
                         <div className="mt-6 text-4xl font-semibold text-[var(--text-primary)]">{formatSubscriptionPrice(plan, status)}</div>
+                        {(originalRmbPrice !== null || discountText) && (
+                          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-[var(--text-tertiary)]">
+                            {originalRmbPrice !== null && <span className="line-through">原价 {formatRmbAmount(originalRmbPrice)}</span>}
+                            {discountText && <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-emerald-400">{discountText}</span>}
+                            <span>按 $1=¥{RMB_PER_USD_BENCHMARK} 计算</span>
+                          </div>
+                        )}
 
                         <div className="mt-5 space-y-2 text-sm text-[var(--text-secondary)]">
                           {planBenefits.map((benefit) => (
