@@ -9,7 +9,7 @@ import {
   NewApiSubscriptionSummary,
   NewApiTopupInfo,
 } from '../../services/newApiService';
-import { formatPayableAmount, formatQuota } from './utils';
+import { formatPayableAmount, formatQuota, getQuotaPerUnit } from './utils';
 import { EmptyState, SectionCard, StatCard } from './ui';
 
 interface BillingPanelProps {
@@ -43,6 +43,83 @@ interface BillingPanelProps {
 
 const normalizeDisplayAmount = (value: number) => (Number.isInteger(value) ? String(value) : value.toFixed(2));
 
+const extractTitleAmount = (title: string | undefined, unitPattern: RegExp): number | null => {
+  const match = String(title || '').match(unitPattern);
+  if (!match) return null;
+  const value = Number(match[1]);
+  return Number.isFinite(value) && value > 0 ? value : null;
+};
+
+const formatRmbAmount = (value: number | null | undefined) => {
+  if (!Number.isFinite(Number(value)) || Number(value) <= 0) return '待配置';
+  return `¥${normalizeDisplayAmount(Number(value))}`;
+};
+
+const formatUsdQuotaValue = (quota: number | undefined, status: NewApiStatus | null) => {
+  const value = Number(quota ?? 0);
+  if (!Number.isFinite(value) || value <= 0) return '$0';
+  const quotaPerUnit = getQuotaPerUnit(status);
+  return `$${normalizeDisplayAmount(value / quotaPerUnit)}`;
+};
+
+const formatPlanQuotaSummary = (plan: NewApiSubscriptionPlan | undefined, status: NewApiStatus | null) => {
+  const titleQuota = extractTitleAmount(plan?.title, /(\d+(?:\.\d+)?)\s*(?:美金(?:额度)?|美元(?:额度)?|USD|\$)/i);
+  if (titleQuota !== null) {
+    return `$${normalizeDisplayAmount(titleQuota)} 美金额度`;
+  }
+
+  const totalAmount = Number(plan?.total_amount || 0);
+  if (!Number.isFinite(totalAmount) || totalAmount <= 0) return '不限';
+  return `${formatUsdQuotaValue(totalAmount, status)} 美金额度`;
+};
+
+const getTopupDiscountValue = (discountMap: Record<string, number> | undefined, amount: number | string) => {
+  if (!discountMap) return null;
+
+  const numericAmount = Number(String(amount).trim());
+  if (!Number.isFinite(numericAmount)) return null;
+
+  const candidateKeys = Array.from(new Set([
+    String(amount).trim(),
+    String(numericAmount),
+    normalizeDisplayAmount(numericAmount),
+  ])).filter(Boolean);
+
+  for (const key of candidateKeys) {
+    const value = discountMap[key];
+    if (value === undefined || value === null) continue;
+    const numericValue = Number(value);
+    return Number.isFinite(numericValue) ? numericValue : null;
+  }
+
+  const matchedEntry = Object.entries(discountMap).find(([key]) => Number(key) === numericAmount);
+  if (!matchedEntry) return null;
+
+  const numericValue = Number(matchedEntry[1]);
+  return Number.isFinite(numericValue) ? numericValue : null;
+};
+
+const formatTopupDiscountLabel = (discount: number | null) => {
+  if (discount === null) return null;
+
+  const value = Number(discount);
+  if (!Number.isFinite(value) || value <= 0) return null;
+
+  let foldValue = 0;
+  if (value <= 1) {
+    foldValue = value * 10;
+  } else if (value <= 10) {
+    foldValue = value;
+  } else if (value <= 100) {
+    foldValue = value / 10;
+  } else {
+    return null;
+  }
+
+  if (!Number.isFinite(foldValue) || foldValue <= 0 || Math.abs(foldValue - 10) < 0.0001) return null;
+  return `${normalizeDisplayAmount(Number(foldValue.toFixed(2)))}折`;
+};
+
 const getCurrencySymbol = (currency?: string, fallback = '￥') => {
   switch (String(currency || '').toUpperCase()) {
     case 'USD':
@@ -58,9 +135,15 @@ const getCurrencySymbol = (currency?: string, fallback = '￥') => {
 };
 
 const formatSubscriptionPrice = (plan: NewApiSubscriptionPlan | undefined, status: NewApiStatus | null) => {
+  const titlePrice = extractTitleAmount(plan?.title, /(\d+(?:\.\d+)?)\s*元/);
+  if (titlePrice !== null) return formatRmbAmount(titlePrice);
+
   const value = Number(plan?.price_amount ?? 0);
   if (!Number.isFinite(value) || value <= 0) return '待配置';
   const symbol = getCurrencySymbol(plan?.currency, status?.custom_currency_symbol || '￥');
+  if (symbol === '$' && /元/.test(String(plan?.title || ''))) {
+    return formatRmbAmount(value);
+  }
   return `${symbol}${normalizeDisplayAmount(value)}`;
 };
 
@@ -186,6 +269,8 @@ export const BillingPanel: React.FC<BillingPanelProps> = ({
   onRefreshSubscriptions,
 }) => {
   const amountOptions = topupInfo?.amount_options ?? [];
+  const topupDiscountMap = topupInfo?.discount;
+  const selectedTopupDiscountLabel = formatTopupDiscountLabel(getTopupDiscountValue(topupDiscountMap, topupAmount));
   const onlineTopupMethods = (topupInfo?.enable_online_topup === false ? [] : topupMethods).filter((method) => !['stripe', 'creem'].includes(method.type));
   const walletPayMethods = topupInfo?.enable_online_topup ? onlineTopupMethods : [];
   const hasPaymentMethod = onlineTopupMethods.length > 0;
@@ -300,7 +385,7 @@ export const BillingPanel: React.FC<BillingPanelProps> = ({
                             总额度:{' '}
                             {totalAmount > 0 ? (
                               <>
-                                {formatQuota(usedAmount, status)}/{formatQuota(totalAmount, status)} · 剩余 {formatQuota(remainAmount, status)}
+                                {formatUsdQuotaValue(usedAmount, status)}/{formatUsdQuotaValue(totalAmount, status)} · 剩余 {formatUsdQuotaValue(remainAmount, status)} 美金额度
                                 <span className="ml-2">已用 {getUsagePercent(item)}%</span>
                               </>
                             ) : '不限'}
@@ -333,7 +418,7 @@ export const BillingPanel: React.FC<BillingPanelProps> = ({
                     const planBenefits = [
                       `有效期: ${formatSubscriptionDuration(plan)}`,
                       ...(resetText !== '不重置' ? [`额度重置: ${resetText}`] : []),
-                      `总额度: ${Number(plan.total_amount || 0) > 0 ? formatQuota(Number(plan.total_amount || 0), status) : '不限'}`,
+                      `总额度: ${formatPlanQuotaSummary(plan, status)}`,
                       ...(formatPlanLimit(plan.max_purchase_per_user) ? [formatPlanLimit(plan.max_purchase_per_user) as string] : []),
                       ...(plan.upgrade_group ? [`升级分组: ${plan.upgrade_group}`] : []),
                     ];
@@ -343,7 +428,7 @@ export const BillingPanel: React.FC<BillingPanelProps> = ({
                         <div className="min-h-[72px]">
                           <div className="flex flex-wrap items-center gap-2">
                             {isRecommended && <span className="rounded-full bg-[var(--accent-bg)] px-2.5 py-1 text-xs text-[var(--accent-text)]">推荐</span>}
-                            <div className="truncate text-2xl font-semibold text-[var(--text-primary)]">{plan.title || '订阅套餐'}</div>
+                            <div className="text-2xl font-semibold leading-tight text-[var(--text-primary)] break-words">{plan.title || '订阅套餐'}</div>
                           </div>
                           {plan.subtitle && <div className="mt-2 line-clamp-2 text-sm leading-6 text-[var(--text-tertiary)]">{plan.subtitle}</div>}
                         </div>
@@ -416,15 +501,25 @@ export const BillingPanel: React.FC<BillingPanelProps> = ({
 
               {amountOptions.length > 0 && (
                 <div className="flex flex-wrap gap-2">
-                  {amountOptions.map((amount) => (
-                    <button
-                      key={amount}
-                      onClick={() => setTopupAmount(String(amount))}
-                      className={`rounded-full border px-4 py-2 text-sm transition-colors ${String(amount) === topupAmount ? 'border-[var(--accent)] bg-[var(--accent-bg)] text-[var(--accent-text)]' : 'border-[var(--border-primary)] text-[var(--text-secondary)] hover:border-[var(--border-secondary)] hover:text-[var(--text-primary)]'}`}
-                    >
-                      {`${normalizeDisplayAmount(amount)}$`}
-                    </button>
-                  ))}
+                  {amountOptions.map((amount) => {
+                    const isSelected = String(amount) === topupAmount;
+                    const discountLabel = formatTopupDiscountLabel(getTopupDiscountValue(topupDiscountMap, amount));
+
+                    return (
+                      <button
+                        key={amount}
+                        onClick={() => setTopupAmount(String(amount))}
+                        className={`inline-flex min-h-[52px] min-w-[68px] flex-col items-center justify-center rounded-2xl border px-3 py-2 text-sm transition-colors ${isSelected ? 'border-[var(--accent)] bg-[var(--accent-bg)] text-[var(--accent-text)]' : 'border-[var(--border-primary)] text-[var(--text-secondary)] hover:border-[var(--border-secondary)] hover:text-[var(--text-primary)]'}`}
+                      >
+                        <span className="leading-none">{`${normalizeDisplayAmount(amount)}$`}</span>
+                        {discountLabel && (
+                          <span className={`mt-1 text-[10px] leading-none ${isSelected ? 'opacity-80' : 'text-[var(--text-tertiary)]'}`}>
+                            {discountLabel}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
 
@@ -444,6 +539,12 @@ export const BillingPanel: React.FC<BillingPanelProps> = ({
                   立即支付
                 </button>
               </div>
+
+              {selectedTopupDiscountLabel && (
+                <div className="text-xs text-[var(--text-tertiary)]">
+                  当前充值金额享 {selectedTopupDiscountLabel} 优惠。
+                </div>
+              )}
 
               <div className="rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] px-4 py-4">
                 <div className="flex items-center gap-2 text-sm text-[var(--text-tertiary)]">
