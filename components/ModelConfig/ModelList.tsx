@@ -38,6 +38,7 @@ const typeDescriptions: Record<ModelType, string> = {
 const ModelList: React.FC<ModelListProps> = ({ type, onRefresh }) => {
   const [models, setModels] = useState<ModelDefinition[]>([]);
   const [isAddingModel, setIsAddingModel] = useState(false);
+  const [editingModelId, setEditingModelId] = useState<string | null>(null);
   const [expandedModelId, setExpandedModelId] = useState<string | null>(null);
   const [activeModelId, setActiveModelId] = useState<string>('');
   const { showAlert } = useAlert();
@@ -105,6 +106,26 @@ const ModelList: React.FC<ModelListProps> = ({ type, onRefresh }) => {
     setExpandedModelId(expandedModelId === modelId ? null : modelId);
   };
 
+  const handleEditModel = (modelId: string) => {
+    setEditingModelId(modelId);
+    // 收起展开的参数面板，避免与编辑表单冲突
+    setExpandedModelId(null);
+    // 关闭新增表单
+    setIsAddingModel(false);
+  };
+
+  const handleSaveEdit = (updates: Omit<ModelDefinition, 'id' | 'isBuiltIn'>) => {
+    if (!editingModelId) return;
+    if (updateModel(editingModelId, updates as any)) {
+      setEditingModelId(null);
+      loadModels();
+      onRefresh();
+      showAlert('模型已更新', { type: 'success' });
+    } else {
+      showAlert('保存失败，请重试', { type: 'error' });
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* 类型说明 */}
@@ -146,16 +167,27 @@ const ModelList: React.FC<ModelListProps> = ({ type, onRefresh }) => {
       {/* 模型列表 */}
       <div className="space-y-2">
         {models.map((model) => (
-          <ModelCard
-            key={model.id}
-            model={model}
-            isExpanded={expandedModelId === model.id}
-            isActive={activeModelId === model.id}
-            onToggleExpand={() => handleToggleExpand(model.id)}
-            onUpdate={(updates) => handleUpdateModel(model.id, updates)}
-            onDelete={() => handleDeleteModel(model.id)}
-            onSetActive={() => handleSetActiveModel(model.id)}
-          />
+          <React.Fragment key={model.id}>
+            <ModelCard
+              model={model}
+              isExpanded={expandedModelId === model.id}
+              isActive={activeModelId === model.id}
+              onToggleExpand={() => handleToggleExpand(model.id)}
+              onUpdate={(updates) => handleUpdateModel(model.id, updates)}
+              onDelete={() => handleDeleteModel(model.id)}
+              onSetActive={() => handleSetActiveModel(model.id)}
+              onEdit={!model.isBuiltIn ? () => handleEditModel(model.id) : undefined}
+            />
+            {/* 内联编辑表单 */}
+            {editingModelId === model.id && (
+              <AddModelForm
+                type={type}
+                initialModel={model}
+                onSave={handleSaveEdit}
+                onCancel={() => setEditingModelId(null)}
+              />
+            )}
+          </React.Fragment>
         ))}
       </div>
 

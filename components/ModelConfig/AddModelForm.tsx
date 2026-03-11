@@ -1,5 +1,5 @@
 /**
- * 添加模型表单组件
+ * 添加/编辑模型表单组件
  * 支持自定义提供商和 endpoint
  */
 
@@ -27,27 +27,61 @@ import { useAlert } from '../GlobalAlert';
 
 interface AddModelFormProps {
   type: ModelType;
+  /** 若传入则为编辑模式，表单将预填充该模型的数据 */
+  initialModel?: ModelDefinition;
   onSave: (model: Omit<ModelDefinition, 'id' | 'isBuiltIn'>) => void;
   onCancel: () => void;
 }
 
-const AddModelForm: React.FC<AddModelFormProps> = ({ type, onSave, onCancel }) => {
+const AddModelForm: React.FC<AddModelFormProps> = ({ type, initialModel, onSave, onCancel }) => {
   const existingProviders = getProviders();
   const { showAlert } = useAlert();
+  const isEditMode = Boolean(initialModel);
 
-  const [name, setName] = useState('');
-  const [apiModel, setApiModel] = useState('');
-  const [description, setDescription] = useState('');
-  const [endpoint, setEndpoint] = useState('');
-  const [apiKey, setApiKey] = useState('');
-  const [imageApiFormat, setImageApiFormat] = useState<ImageApiFormat>('gemini');
-  const [videoMode, setVideoMode] = useState<'sync' | 'async' | 'task'>('sync');
-  const [audioVoice, setAudioVoice] = useState<string>(DEFAULT_AUDIO_PARAMS.defaultVoice);
-  const [audioOutputFormat, setAudioOutputFormat] = useState<AudioOutputFormat>(DEFAULT_AUDIO_PARAMS.outputFormat);
+  const [name, setName] = useState(initialModel?.name ?? '');
+  const [apiModel, setApiModel] = useState(initialModel?.apiModel ?? '');
+  const [description, setDescription] = useState(initialModel?.description ?? '');
+  const [endpoint, setEndpoint] = useState(initialModel?.endpoint ?? '');
+  const [apiKey, setApiKey] = useState(initialModel?.apiKey ?? '');
+
+  // 图片/图片编辑 API 协议
+  const inferImageFormat = (): ImageApiFormat => {
+    if (!initialModel) return 'gemini';
+    const params = initialModel.params as ImageModelParams;
+    return params?.apiFormat ?? 'gemini';
+  };
+  const [imageApiFormat, setImageApiFormat] = useState<ImageApiFormat>(inferImageFormat());
+
+  // 视频模式
+  const inferVideoMode = (): 'sync' | 'async' | 'task' => {
+    if (!initialModel) return 'sync';
+    const params = initialModel.params as VideoModelParams;
+    if (params?.mode === 'async') {
+      return (initialModel.endpoint || '').includes('/contents/generations/tasks') ? 'task' : 'async';
+    }
+    return 'sync';
+  };
+  const [videoMode, setVideoMode] = useState<'sync' | 'async' | 'task'>(inferVideoMode());
+
+  const inferAudioVoice = (): string => {
+    if (!initialModel) return DEFAULT_AUDIO_PARAMS.defaultVoice;
+    const params = initialModel.params as AudioModelParams;
+    return params?.defaultVoice ?? DEFAULT_AUDIO_PARAMS.defaultVoice;
+  };
+  const inferAudioFormat = (): AudioOutputFormat => {
+    if (!initialModel) return DEFAULT_AUDIO_PARAMS.outputFormat;
+    const params = initialModel.params as AudioModelParams;
+    return params?.outputFormat ?? DEFAULT_AUDIO_PARAMS.outputFormat;
+  };
+  const [audioVoice, setAudioVoice] = useState<string>(inferAudioVoice());
+  const [audioOutputFormat, setAudioOutputFormat] = useState<AudioOutputFormat>(inferAudioFormat());
 
   // 提供商配置
-  const [providerMode, setProviderMode] = useState<'existing' | 'custom'>('existing');
-  const [selectedProviderId, setSelectedProviderId] = useState(existingProviders[0]?.id || 'antsk');
+  const inferProviderMode = (): 'existing' | 'custom' => 'existing';
+  const [providerMode, setProviderMode] = useState<'existing' | 'custom'>(inferProviderMode());
+  const [selectedProviderId, setSelectedProviderId] = useState(
+    initialModel?.providerId ?? existingProviders[0]?.id ?? 'antsk'
+  );
   const [customProviderName, setCustomProviderName] = useState('');
   const [customProviderBaseUrl, setCustomProviderBaseUrl] = useState('');
   const [customProviderApiKey, setCustomProviderApiKey] = useState('');
@@ -77,7 +111,6 @@ const AddModelForm: React.FC<AddModelFormProps> = ({ type, onSave, onCancel }) =
         return;
       }
       const sanitizedBaseUrl = customProviderBaseUrl.trim().replace(/\/+$/, '');
-      // 创建新提供商（包含 API Key）
       const newProvider = addProvider({
         name: customProviderName.trim(),
         baseUrl: sanitizedBaseUrl,
@@ -92,7 +125,7 @@ const AddModelForm: React.FC<AddModelFormProps> = ({ type, onSave, onCancel }) =
     let resolvedEndpoint = endpoint.trim() || undefined;
 
     if (type === 'chat') {
-      params = { ...DEFAULT_CHAT_PARAMS };
+      params = initialModel?.params ? { ...initialModel.params } : { ...DEFAULT_CHAT_PARAMS };
       if (!resolvedEndpoint) resolvedEndpoint = '/v1/chat/completions';
     } else if (type === 'image' || type === 'imageEdit') {
       params =
@@ -140,7 +173,7 @@ const AddModelForm: React.FC<AddModelFormProps> = ({ type, onSave, onCancel }) =
       endpoint: resolvedEndpoint,
       description: description.trim() || undefined,
       apiKey: providerMode === 'existing' ? (apiKey.trim() || undefined) : undefined,
-      isEnabled: true,
+      isEnabled: initialModel?.isEnabled ?? true,
       params,
     } as any;
 
@@ -149,7 +182,9 @@ const AddModelForm: React.FC<AddModelFormProps> = ({ type, onSave, onCancel }) =
 
   return (
     <div className="bg-[var(--bg-elevated)]/50 border border-[var(--border-secondary)] rounded-lg p-4 space-y-4">
-      <h4 className="text-sm font-bold text-[var(--text-primary)]">添加自定义模型</h4>
+      <h4 className="text-sm font-bold text-[var(--text-primary)]">
+        {isEditMode ? '编辑自定义模型' : '添加自定义模型'}
+      </h4>
 
       {/* 基础信息 */}
       <div className="grid grid-cols-2 gap-4">
@@ -197,8 +232,8 @@ const AddModelForm: React.FC<AddModelFormProps> = ({ type, onSave, onCancel }) =
             <button
               onClick={() => setImageApiFormat('gemini')}
               className={`flex-1 py-2 text-xs rounded transition-colors ${imageApiFormat === 'gemini'
-                  ? 'bg-[var(--accent)] text-[var(--text-primary)]'
-                  : 'bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:bg-[var(--border-secondary)]'
+                ? 'bg-[var(--accent)] text-[var(--text-primary)]'
+                : 'bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:bg-[var(--border-secondary)]'
                 }`}
             >
               Gemini GenerateContent
@@ -206,8 +241,8 @@ const AddModelForm: React.FC<AddModelFormProps> = ({ type, onSave, onCancel }) =
             <button
               onClick={() => setImageApiFormat('openai')}
               className={`flex-1 py-2 text-xs rounded transition-colors ${imageApiFormat === 'openai'
-                  ? 'bg-[var(--accent)] text-[var(--text-primary)]'
-                  : 'bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:bg-[var(--border-secondary)]'
+                ? 'bg-[var(--accent)] text-[var(--text-primary)]'
+                : 'bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:bg-[var(--border-secondary)]'
                 }`}
             >
               OpenAI Images（支持参考图）
@@ -295,8 +330,8 @@ const AddModelForm: React.FC<AddModelFormProps> = ({ type, onSave, onCancel }) =
           <button
             onClick={() => setProviderMode('existing')}
             className={`flex-1 py-2 text-xs rounded transition-colors ${providerMode === 'existing'
-                ? 'bg-[var(--accent)] text-[var(--text-primary)]'
-                : 'bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:bg-[var(--border-secondary)]'
+              ? 'bg-[var(--accent)] text-[var(--text-primary)]'
+              : 'bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:bg-[var(--border-secondary)]'
               }`}
           >
             使用已有提供商
@@ -304,8 +339,8 @@ const AddModelForm: React.FC<AddModelFormProps> = ({ type, onSave, onCancel }) =
           <button
             onClick={() => setProviderMode('custom')}
             className={`flex-1 py-2 text-xs rounded transition-colors ${providerMode === 'custom'
-                ? 'bg-[var(--accent)] text-[var(--text-primary)]'
-                : 'bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:bg-[var(--border-secondary)]'
+              ? 'bg-[var(--accent)] text-[var(--text-primary)]'
+              : 'bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:bg-[var(--border-secondary)]'
               }`}
           >
             添加新提供商
@@ -369,8 +404,8 @@ const AddModelForm: React.FC<AddModelFormProps> = ({ type, onSave, onCancel }) =
             <button
               onClick={() => setVideoMode('sync')}
               className={`flex-1 py-2 text-xs rounded transition-colors ${videoMode === 'sync'
-                  ? 'bg-[var(--accent)] text-[var(--text-primary)]'
-                  : 'bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:bg-[var(--border-secondary)]'
+                ? 'bg-[var(--accent)] text-[var(--text-primary)]'
+                : 'bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:bg-[var(--border-secondary)]'
                 }`}
             >
               同步模式（Chat Completion 类）
@@ -378,8 +413,8 @@ const AddModelForm: React.FC<AddModelFormProps> = ({ type, onSave, onCancel }) =
             <button
               onClick={() => setVideoMode('async')}
               className={`flex-1 py-2 text-xs rounded transition-colors ${videoMode === 'async'
-                  ? 'bg-[var(--accent)] text-[var(--text-primary)]'
-                  : 'bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:bg-[var(--border-secondary)]'
+                ? 'bg-[var(--accent)] text-[var(--text-primary)]'
+                : 'bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:bg-[var(--border-secondary)]'
                 }`}
             >
               异步模式（Sora 类）
@@ -387,8 +422,8 @@ const AddModelForm: React.FC<AddModelFormProps> = ({ type, onSave, onCancel }) =
             <button
               onClick={() => setVideoMode('task')}
               className={`flex-1 py-2 text-xs rounded transition-colors ${videoMode === 'task'
-                  ? 'bg-[var(--accent)] text-[var(--text-primary)]'
-                  : 'bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:bg-[var(--border-secondary)]'
+                ? 'bg-[var(--accent)] text-[var(--text-primary)]'
+                : 'bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:bg-[var(--border-secondary)]'
                 }`}
             >
               异步模式（火山任务类）
@@ -407,7 +442,7 @@ const AddModelForm: React.FC<AddModelFormProps> = ({ type, onSave, onCancel }) =
           className="flex-1 py-2.5 bg-[var(--accent)] text-[var(--text-primary)] text-xs font-bold rounded hover:bg-[var(--accent-hover)] transition-colors flex items-center justify-center gap-1"
         >
           <Check className="w-3 h-3" />
-          添加模型
+          {isEditMode ? '保存修改' : '添加模型'}
         </button>
         <button
           onClick={onCancel}

@@ -4,9 +4,9 @@
  */
 
 import React, { useState } from 'react';
-import { ChevronDown, ChevronUp, Trash2, ToggleLeft, ToggleRight, CheckCircle, Circle } from 'lucide-react';
-import { 
-  ModelDefinition, 
+import { ChevronDown, ChevronUp, Trash2, ToggleLeft, ToggleRight, CheckCircle, Circle, Pencil } from 'lucide-react';
+import {
+  ModelDefinition,
   ChatModelParams,
   ImageModelParams,
   VideoModelParams,
@@ -24,6 +24,7 @@ interface ModelCardProps {
   onUpdate: (updates: Partial<ModelDefinition>) => void;
   onDelete: () => void;
   onSetActive: () => void;
+  onEdit?: () => void;
 }
 
 const ModelCard: React.FC<ModelCardProps> = ({
@@ -34,6 +35,7 @@ const ModelCard: React.FC<ModelCardProps> = ({
   onUpdate,
   onDelete,
   onSetActive,
+  onEdit,
 }) => {
   const [editParams, setEditParams] = useState<any>(model.params);
   const [editApiKey, setEditApiKey] = useState<string>(model.apiKey || '');
@@ -104,11 +106,10 @@ const ModelCard: React.FC<ModelCardProps> = ({
             <button
               key={ratio}
               onClick={() => handleParamChange('defaultAspectRatio', ratio)}
-              className={`px-3 py-1.5 text-xs rounded transition-colors ${
-                editParams.defaultAspectRatio === ratio
+              className={`px-3 py-1.5 text-xs rounded transition-colors ${editParams.defaultAspectRatio === ratio
                   ? 'bg-[var(--accent)] text-[var(--text-primary)]'
                   : 'bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:bg-[var(--border-secondary)]'
-              }`}
+                }`}
             >
               {ratio === '16:9' ? '横屏' : ratio === '9:16' ? '竖屏' : '方形'}
             </button>
@@ -127,11 +128,10 @@ const ModelCard: React.FC<ModelCardProps> = ({
             <button
               key={ratio}
               onClick={() => handleParamChange('defaultAspectRatio', ratio)}
-              className={`px-3 py-1.5 text-xs rounded transition-colors ${
-                editParams.defaultAspectRatio === ratio
+              className={`px-3 py-1.5 text-xs rounded transition-colors ${editParams.defaultAspectRatio === ratio
                   ? 'bg-[var(--accent)] text-[var(--text-primary)]'
                   : 'bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:bg-[var(--border-secondary)]'
-              }`}
+                }`}
             >
               {ratio === '16:9' ? '横屏' : ratio === '9:16' ? '竖屏' : '方形'}
             </button>
@@ -146,11 +146,10 @@ const ModelCard: React.FC<ModelCardProps> = ({
               <button
                 key={duration}
                 onClick={() => handleParamChange('defaultDuration', duration)}
-                className={`px-3 py-1.5 text-xs rounded transition-colors ${
-                  editParams.defaultDuration === duration
+                className={`px-3 py-1.5 text-xs rounded transition-colors ${editParams.defaultDuration === duration
                     ? 'bg-[var(--accent)] text-[var(--text-primary)]'
                     : 'bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:bg-[var(--border-secondary)]'
-                }`}
+                  }`}
               >
                 {duration}秒
               </button>
@@ -199,10 +198,9 @@ const ModelCard: React.FC<ModelCardProps> = ({
   const apiModelLabel = model.apiModel || model.id;
 
   return (
-    <div 
-      className={`bg-[var(--bg-elevated)]/50 border rounded-lg overflow-hidden transition-all ${
-        isActive ? 'border-[var(--accent-border)] bg-[var(--accent-bg)]' : 'border-[var(--border-primary)]'
-      } ${!model.isEnabled ? 'opacity-60' : ''}`}
+    <div
+      className={`bg-[var(--bg-elevated)]/50 border rounded-lg overflow-hidden transition-all ${isActive ? 'border-[var(--accent-border)] bg-[var(--accent-bg)]' : 'border-[var(--border-primary)]'
+        } ${!model.isEnabled ? 'opacity-60' : ''}`}
     >
       {/* 头部 */}
       <div className="p-4 flex items-center justify-between">
@@ -212,11 +210,10 @@ const ModelCard: React.FC<ModelCardProps> = ({
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium text-[var(--text-primary)]">{model.name}</span>
               {model.isBuiltIn && (
-                <span className={`px-1.5 py-0.5 text-[9px] rounded ${
-                  isVolcengineModel
+                <span className={`px-1.5 py-0.5 text-[9px] rounded ${isVolcengineModel
                     ? 'bg-[var(--warning-bg)] text-[var(--warning-text)]'
                     : 'bg-[var(--border-secondary)] text-[var(--text-tertiary)]'
-                }`}>
+                  }`}>
                   {isVolcengineModel ? '火山引擎' : '内置'}
                 </span>
               )}
@@ -243,7 +240,7 @@ const ModelCard: React.FC<ModelCardProps> = ({
               使用
             </button>
           )}
-          
+
           {/* 当前激活标记 */}
           {isActive && (
             <span className="px-2.5 py-1 bg-[var(--accent-bg)] text-[var(--accent-text-hover)] text-[10px] font-bold rounded flex items-center gap-1">
@@ -264,6 +261,17 @@ const ModelCard: React.FC<ModelCardProps> = ({
               <ToggleLeft className="w-5 h-5" />
             )}
           </button>
+
+          {/* 编辑按钮（仅非内置模型） */}
+          {!model.isBuiltIn && onEdit && (
+            <button
+              onClick={onEdit}
+              className="text-[var(--text-tertiary)] hover:text-[var(--accent-text)] transition-colors"
+              title="编辑"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+          )}
 
           {/* 删除按钮（仅非内置模型） */}
           {!model.isBuiltIn && (
@@ -320,7 +328,7 @@ const ModelCard: React.FC<ModelCardProps> = ({
                 <p className="text-[9px] text-[var(--success)] mt-1">✓ 已配置专属 Key</p>
               )}
             </div>
-            
+
             {model.type === 'chat' && renderChatParams(model.params)}
             {model.type === 'image' && renderImageParams(model.params)}
             {model.type === 'video' && renderVideoParams(model.params)}
