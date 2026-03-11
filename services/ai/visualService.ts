@@ -26,6 +26,7 @@ import {
   getImageApiFormat,
   getDefaultImageEndpoint,
   resolveOpenAiImageEndpoint,
+  resolveOpenAiImageModelName,
   mapAspectRatioToOpenAiImageSize,
 } from '../imageModelUtils';
 
@@ -801,14 +802,14 @@ const dataUrlToImageFile = (dataUrl: string, filename: string): File | null => {
 const extractImageFromOpenAiResponse = (response: any): string | null => {
   const first = response?.data?.[0];
   if (!first) return null;
-  
+
   const b64Data = first.b64_json || first.base64;
   if (b64Data) {
     const format = first.output_format || OPENAI_IMAGE_OUTPUT_FORMAT;
     const prefix = b64Data.startsWith('data:') ? '' : `data:image/${format};base64,`;
     return `${prefix}${b64Data}`;
   }
-  
+
   if (first.url) {
     return String(first.url);
   }
@@ -841,7 +842,9 @@ export const generateImage = async (
     );
   }
 
-  const activeImageModel = getActiveModel('image');
+  const activeImageModel = hasAnyReference
+    ? (getActiveModel('imageEdit') || getActiveModel('image'))
+    : getActiveModel('image');
   const imageRoutingFamily = resolveImageModelRoutingFamily(activeImageModel);
   const imageModelId = activeImageModel?.apiModel || activeImageModel?.id || 'gemini-3-pro-image-preview';
   const imageApiFormat = getImageApiFormat(activeImageModel as any);
@@ -925,17 +928,17 @@ Output one cinematic still image.`;
             ? 'Strictly preserve scene layout, atmosphere, and lighting logic.'
             : referencePackType === 'shape'
               ? 'Use references only for silhouette and spatial geometry; style and lighting must follow textual prompt.'
-            : 'Keep visual style and lighting coherent with prompt and references.';
+              : 'Keep visual style and lighting coherent with prompt and references.';
         const characterConsistencyRule = referencePackType === 'character'
           ? 'Generated character must remain identical to references (face, hair, proportions, outfit details).'
           : referencePackType === 'shape'
             ? 'If characters appear, keep overall silhouette/proportions aligned with references but rely on prompt for style and materials.'
-          : 'If characters appear, match referenced identity exactly (face, hair, proportions, signature details).';
+            : 'If characters appear, match referenced identity exactly (face, hair, proportions, signature details).';
         const propConsistencyRule = referencePackType === 'prop'
           ? 'Props/items must match references exactly (shape, material, color, details).'
           : referencePackType === 'shape'
             ? 'If props/items appear, preserve major shape cues from references while following prompt-defined style/material treatment.'
-          : 'Referenced props/items in shot must match shape, material, color, and details.';
+            : 'Referenced props/items in shot must match shape, material, color, and details.';
         const continuityGuide = continuityReferenceImage
           ? '- Last image is continuity reference; preserve transition continuity for identity, lighting, and spatial placement.'
           : null;
@@ -1038,7 +1041,8 @@ NEGATIVE PROMPT (strictly avoid): ${compactNegativePrompt}`;
           }
 
           const formData = new FormData();
-          formData.append('model', imageModelId);
+          const effectiveModelId = resolveOpenAiImageModelName(imageModelId, true);
+          formData.append('model', effectiveModelId);
           formData.append('prompt', finalPrompt);
           formData.append('size', openAiSize);
           formData.append('quality', OPENAI_IMAGE_QUALITY);
@@ -1057,7 +1061,7 @@ NEGATIVE PROMPT (strictly avoid): ${compactNegativePrompt}`;
           });
         } else {
           const requestBody = {
-            model: imageModelId,
+            model: resolveOpenAiImageModelName(imageModelId, false),
             prompt: finalPrompt,
             size: openAiSize,
             quality: OPENAI_IMAGE_QUALITY,

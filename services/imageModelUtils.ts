@@ -66,3 +66,21 @@ export const mapAspectRatioToOpenAiImageSize = (aspectRatio: AspectRatio): strin
       return '1536x1024';
   }
 };
+
+export const resolveOpenAiImageModelName = (
+  modelId: string,
+  hasReferenceImages: boolean
+): string => {
+  if (!hasReferenceImages) {
+    return modelId;
+  }
+
+  const lowerModelId = modelId.toLowerCase();
+
+  // Grok models require -edit suffix for image edits
+  if (lowerModelId.includes('grok-imagine') && !lowerModelId.endsWith('-edit')) {
+    return `${modelId}-edit`;
+  }
+
+  return modelId;
+};

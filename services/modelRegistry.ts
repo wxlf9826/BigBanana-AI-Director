@@ -75,6 +75,11 @@ export const loadRegistry = (): ModelRegistryState => {
         ...(parsed.activeModels || {}),
       };
 
+      // 迁移：如果 imageEdit 缺失或为空，初始化为当前激活的图片模型
+      if (!parsed.activeModels.imageEdit) {
+        parsed.activeModels.imageEdit = parsed.activeModels.image || DEFAULT_ACTIVE_MODELS.imageEdit;
+      }
+
       let chatModelAliasMigrated = false;
       const hasBuiltinGpt54 = parsed.models.some(m => m.type === 'chat' && m.id === 'gpt-5.4');
       parsed.models = parsed.models.flatMap((model) => {
@@ -101,11 +106,11 @@ export const loadRegistry = (): ModelRegistryState => {
         parsed.activeModels.chat = normalizedActiveChatModel;
         chatModelAliasMigrated = true;
       }
-      
+
       // 确保内置模型和提供商始终存在
       const builtInProviderIds = BUILTIN_PROVIDERS.map(p => p.id);
       const builtInModelIds = ALL_BUILTIN_MODELS.map(m => m.id);
-      
+
       // 合并内置提供商
       const existingProviderIds = parsed.providers.map(p => p.id);
       BUILTIN_PROVIDERS.forEach(bp => {
@@ -122,7 +127,7 @@ export const loadRegistry = (): ModelRegistryState => {
         seenBaseUrls.add(key);
         return true;
       });
-      
+
       // 合并内置模型，并确保内置模型的参数与代码保持同步
       const existingModelIds = parsed.models.map(m => m.id);
       ALL_BUILTIN_MODELS.forEach(bm => {
@@ -244,10 +249,10 @@ export const loadRegistry = (): ModelRegistryState => {
           activeModelMigrated = true;
         }
       });
-      
+
       // 同步全局 API Key
       parsed.globalApiKey = localStorage.getItem(API_KEY_STORAGE_KEY) || parsed.globalApiKey;
-      
+
       registryState = parsed;
 
       // 如果发生了迁移，立即回写 localStorage，避免每次加载都重复执行
@@ -367,14 +372,14 @@ export const updateProvider = (id: string, updates: Partial<ModelProvider>): boo
 export const removeProvider = (id: string): boolean => {
   const state = loadRegistry();
   const provider = state.providers.find(p => p.id === id);
-  
+
   // 不能删除内置提供商
   if (!provider || provider.isBuiltIn) return false;
-  
+
   // 删除该提供商的所有模型
   state.models = state.models.filter(m => m.providerId !== id);
   state.providers = state.providers.filter(p => p.id !== id);
-  
+
   saveRegistry(state);
   return true;
 };
@@ -392,7 +397,8 @@ export const getModels = (type?: ModelType): ModelDefinition[] => {
     m => !(m.type === 'video' && m.isBuiltIn && m.id === 'veo')
   );
   if (type) {
-    const typedModels = models.filter(m => m.type === type);
+    const actualType = type === 'imageEdit' ? 'image' : type;
+    const typedModels = models.filter(m => m.type === actualType);
 
     // Video model ordering:
     // 1) non-Volcengine models first
@@ -502,6 +508,13 @@ export const getActiveVideoModel = (): VideoModelDefinition | undefined => {
 };
 
 /**
+ * 获取当前激活的图片编辑模型
+ */
+export const getActiveImageEditModel = (): ImageModelDefinition | undefined => {
+  return getActiveModel('imageEdit') as ImageModelDefinition | undefined;
+};
+
+/**
  * 获取当前激活的配音模型
  */
 export const getActiveAudioModel = (): AudioModelDefinition | undefined => {
@@ -513,7 +526,8 @@ export const getActiveAudioModel = (): AudioModelDefinition | undefined => {
  */
 export const setActiveModel = (type: ModelType, modelId: string): boolean => {
   const model = getModelById(modelId);
-  if (!model || model.type !== type || !model.isEnabled) return false;
+  const actualType = type === 'imageEdit' ? 'image' : type;
+  if (!model || model.type !== actualType || !model.isEnabled) return false;
 
   const state = loadRegistry();
   state.activeModels[type] = modelId;
@@ -527,7 +541,7 @@ export const setActiveModel = (type: ModelType, modelId: string): boolean => {
  */
 export const registerModel = (model: Omit<ModelDefinition, 'id' | 'isBuiltIn'> & { id?: string }): ModelDefinition => {
   const state = loadRegistry();
-  
+
   const providedId = (model as any).id?.trim();
   const apiModel = (model as any).apiModel?.trim();
   const baseId = providedId || (apiModel ? `${model.providerId}:${apiModel}` : `model_${Date.now()}`);
@@ -542,7 +556,7 @@ export const registerModel = (model: Omit<ModelDefinition, 'id' | 'isBuiltIn'> &
   } else if (state.models.some(m => m.id === modelId)) {
     throw new Error(`模型 ID "${modelId}" 已存在，请使用其他 ID`);
   }
-  
+
   const newModel = {
     ...model,
     id: modelId,
@@ -551,7 +565,7 @@ export const registerModel = (model: Omit<ModelDefinition, 'id' | 'isBuiltIn'> &
       : modelId),
     isBuiltIn: false,
   } as ModelDefinition;
-  
+
   state.models.push(newModel);
   saveRegistry(state);
   return newModel;
@@ -591,10 +605,10 @@ export const updateModel = (id: string, updates: Partial<ModelDefinition>): bool
 export const removeModel = (id: string): boolean => {
   const state = loadRegistry();
   const model = state.models.find(m => m.id === id);
-  
+
   // 不能删除内置模型
   if (!model || model.isBuiltIn) return false;
-  
+
   // 如果删除的是当前激活的模型，切换到同类型的第一个启用模型
   if (state.activeModels[model.type] === id) {
     const fallback = state.models.find(m => m.type === model.type && m.id !== id && m.isEnabled);
@@ -602,7 +616,7 @@ export const removeModel = (id: string): boolean => {
       state.activeModels[model.type] = fallback.id;
     }
   }
-  
+
   state.models = state.models.filter(m => m.id !== id);
   saveRegistry(state);
   return true;
@@ -643,18 +657,18 @@ export const setGlobalApiKey = (apiKey: string): void => {
 export const getApiKeyForModel = (modelId: string): string | undefined => {
   const model = getModelById(modelId);
   if (!model) return getGlobalApiKey();
-  
+
   // 1. 优先使用模型专属 API Key
   if (model.apiKey) {
     return model.apiKey;
   }
-  
+
   // 2. 其次使用提供商的 API Key
   const provider = getProviderById(model.providerId);
   if (provider?.apiKey) {
     return provider.apiKey;
   }
-  
+
   // 3. 最后使用全局 API Key
   return getGlobalApiKey();
 };
@@ -665,7 +679,7 @@ export const getApiKeyForModel = (modelId: string): string | undefined => {
 export const getApiBaseUrlForModel = (modelId: string): string => {
   const model = getModelById(modelId);
   if (!model) return BUILTIN_PROVIDERS[0].baseUrl.replace(/\/+$/, '');
-  
+
   const provider = getProviderById(model.providerId);
   const baseUrl = provider?.baseUrl || BUILTIN_PROVIDERS[0].baseUrl;
   return baseUrl.replace(/\/+$/, '');
@@ -688,7 +702,7 @@ export const getActiveModelsConfig = (): ActiveModels => {
 export const isModelAvailable = (modelId: string): boolean => {
   const model = getModelById(modelId);
   if (!model || !model.isEnabled) return false;
-  
+
   const apiKey = getApiKeyForModel(modelId);
   return !!apiKey;
 };

@@ -5,9 +5,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { Plus, Info, CheckCircle } from 'lucide-react';
-import { 
-  ModelType, 
-  ModelDefinition, 
+import {
+  ModelType,
+  ModelDefinition,
 } from '../../types/model';
 import {
   getModels,
@@ -30,6 +30,7 @@ interface ModelListProps {
 const typeDescriptions: Record<ModelType, string> = {
   chat: '用于剧本解析、分镜生成、提示词优化等文本生成任务',
   image: '用于角色定妆、场景生成、关键帧生成等图片生成任务',
+  imageEdit: '用于基于参考图的图片编辑、角色一致性生成等任务（上传了参考图时使用）',
   video: '用于视频片段生成任务',
   audio: '用于镜头旁白/对话配音，输出可直接预览的音频片段',
 };
@@ -59,7 +60,7 @@ const ModelList: React.FC<ModelListProps> = ({ type, onRefresh }) => {
       const model = models.find(m => m.id === modelId);
       const provider = model ? getProviderById(model.providerId) : null;
       showAlert(
-        `已切换到 ${model?.name}${provider ? ` (${provider.name})` : ''}`, 
+        `已切换到 ${model?.name}${provider ? ` (${provider.name})` : ''}`,
         { type: 'success' }
       );
       onRefresh();

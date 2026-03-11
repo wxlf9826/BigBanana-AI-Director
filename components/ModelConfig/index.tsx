@@ -26,7 +26,7 @@ interface ModelConfigModalProps {
   onClose: () => void;
 }
 
-type TabType = 'global' | 'chat' | 'image' | 'video' | 'audio';
+type TabType = 'global' | 'chat' | 'image' | 'imageEdit' | 'video' | 'audio';
 
 const ModelConfigModal: React.FC<ModelConfigModalProps> = ({ isOpen, onClose }) => {
   const [activeTab, setActiveTab] = useState<TabType>('global');
@@ -41,13 +41,14 @@ const ModelConfigModal: React.FC<ModelConfigModalProps> = ({ isOpen, onClose }) 
   const tabs: { id: TabType; label: string; icon: React.ReactNode }[] = [
     { id: 'global', label: '全局配置', icon: <Key className="w-4 h-4" /> },
     { id: 'chat', label: '对话模型', icon: <MessageSquare className="w-4 h-4" /> },
-    { id: 'image', label: '图片模型', icon: <Image className="w-4 h-4" /> },
+    { id: 'image', label: '图片生成', icon: <Image className="w-4 h-4" /> },
+    { id: 'imageEdit', label: '图片编辑', icon: <Image className="w-4 h-4" /> },
     { id: 'video', label: '视频模型', icon: <Video className="w-4 h-4" /> },
     { id: 'audio', label: '配音模型', icon: <Mic className="w-4 h-4" /> },
   ];
 
   return (
-    <div 
+    <div
       className="fixed inset-0 z-[200] flex items-center justify-center"
       onPointerDown={(e) => {
         // 仅当按下发生在弹窗外部时，才允许后续抬起关闭。
@@ -70,7 +71,7 @@ const ModelConfigModal: React.FC<ModelConfigModalProps> = ({ isOpen, onClose }) 
       <div className="absolute inset-0 bg-[var(--bg-base)]/80 backdrop-blur-sm" />
 
       {/* 弹窗 */}
-      <div 
+      <div
         className="relative z-10 w-full max-w-2xl mx-4 bg-[var(--bg-primary)] border border-[var(--border-primary)] rounded-xl shadow-2xl animate-in zoom-in-95 fade-in duration-200 max-h-[85vh] flex flex-col"
         ref={modalRef}
         onClick={(e) => e.stopPropagation()}
@@ -100,11 +101,10 @@ const ModelConfigModal: React.FC<ModelConfigModalProps> = ({ isOpen, onClose }) 
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2 border-b-2 ${
-                activeTab === tab.id
+              className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2 border-b-2 ${activeTab === tab.id
                   ? 'text-[var(--text-primary)] border-[var(--accent)] bg-[var(--bg-elevated)]/30'
                   : 'text-[var(--text-tertiary)] border-transparent hover:text-[var(--text-secondary)]'
-              }`}
+                }`}
             >
               {tab.icon}
               {tab.label}
@@ -117,8 +117,8 @@ const ModelConfigModal: React.FC<ModelConfigModalProps> = ({ isOpen, onClose }) 
           {activeTab === 'global' ? (
             <GlobalSettings onRefresh={refresh} />
           ) : (
-            <ModelList 
-              type={activeTab as ModelType} 
+            <ModelList
+              type={activeTab as ModelType}
               onRefresh={refresh}
             />
           )}

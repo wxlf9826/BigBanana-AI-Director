@@ -5,8 +5,8 @@
 
 import React from 'react';
 import { Cpu, ChevronDown } from 'lucide-react';
-import { 
-  ModelType, 
+import {
+  ModelType,
   ModelDefinition,
   ChatModelDefinition,
   ImageModelDefinition,
@@ -32,6 +32,7 @@ interface ModelSelectorProps {
 const typeLabels: Record<ModelType, string> = {
   chat: '对话模型',
   image: '图片模型',
+  imageEdit: '图片编辑模型',
   video: '视频模型',
   audio: '配音模型',
 };
@@ -52,6 +53,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
         models = getChatModels();
         break;
       case 'image':
+      case 'imageEdit':
         models = getImageModels();
         break;
       case 'video':
@@ -131,7 +133,7 @@ export const VideoModelSelector: React.FC<{
 }> = ({ value, onChange, disabled }) => {
   const models = getVideoModels().filter(m => m.isEnabled);
   const selectedModel = models.find(m => m.id === value) as VideoModelDefinition | undefined;
-  
+
   return (
     <div className="space-y-1">
       <label className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">
@@ -159,7 +161,7 @@ export const VideoModelSelector: React.FC<{
       {selectedModel && (
         <p className="text-[9px] text-[var(--text-muted)]">
           模式: {selectedModel.params.mode === 'async' ? '异步（需要轮询）' : '同步（直接返回）'}
-          {selectedModel.params.supportedDurations.length > 1 && 
+          {selectedModel.params.supportedDurations.length > 1 &&
             ` · 支持时长: ${selectedModel.params.supportedDurations.join('/')}秒`
           }
         </p>
