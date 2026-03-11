@@ -5,8 +5,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { Check, X } from 'lucide-react';
-import { 
-  ModelType, 
+import {
+  ModelType,
   ModelDefinition,
   ImageApiFormat,
   AudioOutputFormat,
@@ -34,7 +34,7 @@ interface AddModelFormProps {
 const AddModelForm: React.FC<AddModelFormProps> = ({ type, onSave, onCancel }) => {
   const existingProviders = getProviders();
   const { showAlert } = useAlert();
-  
+
   const [name, setName] = useState('');
   const [apiModel, setApiModel] = useState('');
   const [description, setDescription] = useState('');
@@ -44,14 +44,14 @@ const AddModelForm: React.FC<AddModelFormProps> = ({ type, onSave, onCancel }) =
   const [videoMode, setVideoMode] = useState<'sync' | 'async' | 'task'>('sync');
   const [audioVoice, setAudioVoice] = useState<string>(DEFAULT_AUDIO_PARAMS.defaultVoice);
   const [audioOutputFormat, setAudioOutputFormat] = useState<AudioOutputFormat>(DEFAULT_AUDIO_PARAMS.outputFormat);
-  
+
   // 提供商配置
   const [providerMode, setProviderMode] = useState<'existing' | 'custom'>('existing');
   const [selectedProviderId, setSelectedProviderId] = useState(existingProviders[0]?.id || 'antsk');
   const [customProviderName, setCustomProviderName] = useState('');
   const [customProviderBaseUrl, setCustomProviderBaseUrl] = useState('');
   const [customProviderApiKey, setCustomProviderApiKey] = useState('');
-  
+
   useEffect(() => {
     if (type !== 'video' || providerMode !== 'existing' || videoMode !== 'task') return;
     const volcengineProvider = existingProviders.find(
@@ -70,7 +70,7 @@ const AddModelForm: React.FC<AddModelFormProps> = ({ type, onSave, onCancel }) =
 
     // 处理提供商
     let providerId = selectedProviderId;
-    
+
     if (providerMode === 'custom') {
       if (!customProviderName.trim() || !customProviderBaseUrl.trim()) {
         showAlert('请填写自定义提供商名称和 API 基础 URL', { type: 'warning' });
@@ -90,11 +90,11 @@ const AddModelForm: React.FC<AddModelFormProps> = ({ type, onSave, onCancel }) =
     // 根据模型类型设置默认参数
     let params: ChatModelParams | ImageModelParams | VideoModelParams | AudioModelParams;
     let resolvedEndpoint = endpoint.trim() || undefined;
-    
+
     if (type === 'chat') {
       params = { ...DEFAULT_CHAT_PARAMS };
       if (!resolvedEndpoint) resolvedEndpoint = '/v1/chat/completions';
-    } else if (type === 'image') {
+    } else if (type === 'image' || type === 'imageEdit') {
       params =
         imageApiFormat === 'openai'
           ? { ...DEFAULT_IMAGE_PARAMS_OPENAI }
@@ -150,7 +150,7 @@ const AddModelForm: React.FC<AddModelFormProps> = ({ type, onSave, onCancel }) =
   return (
     <div className="bg-[var(--bg-elevated)]/50 border border-[var(--border-secondary)] rounded-lg p-4 space-y-4">
       <h4 className="text-sm font-bold text-[var(--text-primary)]">添加自定义模型</h4>
-      
+
       {/* 基础信息 */}
       <div className="grid grid-cols-2 gap-4">
         <div>
@@ -189,28 +189,26 @@ const AddModelForm: React.FC<AddModelFormProps> = ({ type, onSave, onCancel }) =
         />
       </div>
 
-      {/* 图片模型特有选项 */}
-      {type === 'image' && (
+      {/* 图片（及图片编辑）模型特有选项 */}
+      {(type === 'image' || type === 'imageEdit') && (
         <div>
           <label className="text-[10px] text-[var(--text-tertiary)] block mb-1">图片 API 协议</label>
           <div className="grid grid-cols-1 gap-2">
             <button
               onClick={() => setImageApiFormat('gemini')}
-              className={`flex-1 py-2 text-xs rounded transition-colors ${
-                imageApiFormat === 'gemini'
+              className={`flex-1 py-2 text-xs rounded transition-colors ${imageApiFormat === 'gemini'
                   ? 'bg-[var(--accent)] text-[var(--text-primary)]'
                   : 'bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:bg-[var(--border-secondary)]'
-              }`}
+                }`}
             >
               Gemini GenerateContent
             </button>
             <button
               onClick={() => setImageApiFormat('openai')}
-              className={`flex-1 py-2 text-xs rounded transition-colors ${
-                imageApiFormat === 'openai'
+              className={`flex-1 py-2 text-xs rounded transition-colors ${imageApiFormat === 'openai'
                   ? 'bg-[var(--accent)] text-[var(--text-primary)]'
                   : 'bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:bg-[var(--border-secondary)]'
-              }`}
+                }`}
             >
               OpenAI Images（支持参考图）
             </button>
@@ -258,7 +256,7 @@ const AddModelForm: React.FC<AddModelFormProps> = ({ type, onSave, onCancel }) =
           placeholder={
             type === 'chat'
               ? '/v1/chat/completions'
-              : type === 'image'
+              : type === 'image' || type === 'imageEdit'
                 ? imageApiFormat === 'openai'
                   ? '/v1/images/generations'
                   : '/v1beta/models/{model}:generateContent'
@@ -296,26 +294,24 @@ const AddModelForm: React.FC<AddModelFormProps> = ({ type, onSave, onCancel }) =
         <div className="flex gap-2 mb-3">
           <button
             onClick={() => setProviderMode('existing')}
-            className={`flex-1 py-2 text-xs rounded transition-colors ${
-              providerMode === 'existing'
+            className={`flex-1 py-2 text-xs rounded transition-colors ${providerMode === 'existing'
                 ? 'bg-[var(--accent)] text-[var(--text-primary)]'
                 : 'bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:bg-[var(--border-secondary)]'
-            }`}
+              }`}
           >
             使用已有提供商
           </button>
           <button
             onClick={() => setProviderMode('custom')}
-            className={`flex-1 py-2 text-xs rounded transition-colors ${
-              providerMode === 'custom'
+            className={`flex-1 py-2 text-xs rounded transition-colors ${providerMode === 'custom'
                 ? 'bg-[var(--accent)] text-[var(--text-primary)]'
                 : 'bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:bg-[var(--border-secondary)]'
-            }`}
+              }`}
           >
             添加新提供商
           </button>
         </div>
-        
+
         {providerMode === 'existing' ? (
           <select
             value={selectedProviderId}
@@ -372,31 +368,28 @@ const AddModelForm: React.FC<AddModelFormProps> = ({ type, onSave, onCancel }) =
           <div className="grid grid-cols-1 gap-2">
             <button
               onClick={() => setVideoMode('sync')}
-              className={`flex-1 py-2 text-xs rounded transition-colors ${
-                videoMode === 'sync'
+              className={`flex-1 py-2 text-xs rounded transition-colors ${videoMode === 'sync'
                   ? 'bg-[var(--accent)] text-[var(--text-primary)]'
                   : 'bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:bg-[var(--border-secondary)]'
-              }`}
+                }`}
             >
               同步模式（Chat Completion 类）
             </button>
             <button
               onClick={() => setVideoMode('async')}
-              className={`flex-1 py-2 text-xs rounded transition-colors ${
-                videoMode === 'async'
+              className={`flex-1 py-2 text-xs rounded transition-colors ${videoMode === 'async'
                   ? 'bg-[var(--accent)] text-[var(--text-primary)]'
                   : 'bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:bg-[var(--border-secondary)]'
-              }`}
+                }`}
             >
               异步模式（Sora 类）
             </button>
             <button
               onClick={() => setVideoMode('task')}
-              className={`flex-1 py-2 text-xs rounded transition-colors ${
-                videoMode === 'task'
+              className={`flex-1 py-2 text-xs rounded transition-colors ${videoMode === 'task'
                   ? 'bg-[var(--accent)] text-[var(--text-primary)]'
                   : 'bg-[var(--bg-hover)] text-[var(--text-tertiary)] hover:bg-[var(--border-secondary)]'
-              }`}
+                }`}
             >
               异步模式（火山任务类）
             </button>

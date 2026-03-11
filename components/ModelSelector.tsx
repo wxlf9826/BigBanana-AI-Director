@@ -18,6 +18,7 @@ import {
   getImageModels,
   getVideoModels,
   getAudioModels,
+  getImageEditModels,
 } from '../services/modelRegistry';
 
 interface ModelSelectorProps {
@@ -53,8 +54,10 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
         models = getChatModels();
         break;
       case 'image':
-      case 'imageEdit':
         models = getImageModels();
+        break;
+      case 'imageEdit':
+        models = getImageEditModels();
         break;
       case 'video':
         models = getVideoModels();

@@ -11,6 +11,7 @@ import {
   ActiveModels,
   ChatModelDefinition,
   ImageModelDefinition,
+  ImageEditModelDefinition,
   VideoModelDefinition,
   AudioModelDefinition,
   BUILTIN_PROVIDERS,
@@ -77,7 +78,12 @@ export const loadRegistry = (): ModelRegistryState => {
 
       // 迁移：如果 imageEdit 缺失或为空，初始化为当前激活的图片模型
       if (!parsed.activeModels.imageEdit) {
-        parsed.activeModels.imageEdit = parsed.activeModels.image || DEFAULT_ACTIVE_MODELS.imageEdit;
+        parsed.activeModels.imageEdit = parsed.activeModels.image || 'gemini-3-pro-image-preview';
+      }
+
+      // 迁移：确保 imageEdit 模型有 -edit 后缀以使用新的独立配置
+      if (parsed.activeModels.imageEdit && !parsed.activeModels.imageEdit.endsWith('-edit')) {
+        parsed.activeModels.imageEdit = `${parsed.activeModels.imageEdit}-edit`;
       }
 
       let chatModelAliasMigrated = false;
@@ -397,8 +403,7 @@ export const getModels = (type?: ModelType): ModelDefinition[] => {
     m => !(m.type === 'video' && m.isBuiltIn && m.id === 'veo')
   );
   if (type) {
-    const actualType = type === 'imageEdit' ? 'image' : type;
-    const typedModels = models.filter(m => m.type === actualType);
+    const typedModels = models.filter(m => m.type === type);
 
     // Video model ordering:
     // 1) non-Volcengine models first
@@ -457,6 +462,13 @@ export const getImageModels = (): ImageModelDefinition[] => {
 };
 
 /**
+ * 获取图片编辑模型列表
+ */
+export const getImageEditModels = (): ImageEditModelDefinition[] => {
+  return getModels('imageEdit') as ImageEditModelDefinition[];
+};
+
+/**
  * 获取视频模型列表
  */
 export const getVideoModels = (): VideoModelDefinition[] => {
@@ -510,8 +522,8 @@ export const getActiveVideoModel = (): VideoModelDefinition | undefined => {
 /**
  * 获取当前激活的图片编辑模型
  */
-export const getActiveImageEditModel = (): ImageModelDefinition | undefined => {
-  return getActiveModel('imageEdit') as ImageModelDefinition | undefined;
+export const getActiveImageEditModel = (): ImageEditModelDefinition | undefined => {
+  return getActiveModel('imageEdit') as ImageEditModelDefinition | undefined;
 };
 
 /**
@@ -526,8 +538,7 @@ export const getActiveAudioModel = (): AudioModelDefinition | undefined => {
  */
 export const setActiveModel = (type: ModelType, modelId: string): boolean => {
   const model = getModelById(modelId);
-  const actualType = type === 'imageEdit' ? 'image' : type;
-  if (!model || model.type !== actualType || !model.isEnabled) return false;
+  if (!model || model.type !== type || !model.isEnabled) return false;
 
   const state = loadRegistry();
   state.activeModels[type] = modelId;

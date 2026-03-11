@@ -140,11 +140,20 @@ export interface AudioModelDefinition extends ModelDefinitionBase {
 }
 
 /**
+ * 图片编辑模型定义
+ */
+export interface ImageEditModelDefinition extends ModelDefinitionBase {
+  type: 'imageEdit';
+  params: ImageModelParams;
+}
+
+/**
  * 模型定义联合类型
  */
 export type ModelDefinition =
   | ChatModelDefinition
   | ImageModelDefinition
+  | ImageEditModelDefinition
   | VideoModelDefinition
   | AudioModelDefinition;
 
@@ -459,6 +468,60 @@ export const BUILTIN_IMAGE_MODELS: ImageModelDefinition[] = [
 ];
 
 /**
+ * 内置图片编辑模型列表
+ */
+export const BUILTIN_IMAGE_EDIT_MODELS: ImageEditModelDefinition[] = [
+  {
+    id: 'gemini-3-pro-image-preview-edit',
+    apiModel: 'gemini-3-pro-image-preview',
+    name: 'Gemini 3 Pro Image (编辑)',
+    type: 'imageEdit',
+    providerId: 'antsk',
+    endpoint: '/v1beta/models/gemini-3-pro-image-preview:generateContent',
+    description: '独立配置的图片编辑模型（仅用于基于参考图的内容修改与生成）',
+    isBuiltIn: true,
+    isEnabled: true,
+    params: { ...DEFAULT_IMAGE_PARAMS },
+  },
+  {
+    id: 'gemini-3.1-flash-image-preview-edit',
+    apiModel: 'gemini-3.1-flash-image-preview',
+    name: 'Gemini 3.1 Flash Image Preview (编辑)',
+    type: 'imageEdit',
+    providerId: 'antsk',
+    endpoint: '/v1beta/models/gemini-3.1-flash-image-preview:generateContent',
+    description: '独立配置的图片编辑模型（仅用于基于参考图的内容修改与生成）',
+    isBuiltIn: true,
+    isEnabled: true,
+    params: { ...DEFAULT_IMAGE_PARAMS },
+  },
+  {
+    id: 'gpt-image-1.5-edit',
+    apiModel: 'gpt-image-1.5',
+    name: 'GPT Image 1.5 (编辑)',
+    type: 'imageEdit',
+    providerId: 'antsk',
+    endpoint: '/v1/images/generations',
+    description: '独立配置的图片编辑模型（仅用于基于参考图的内容修改与生成）',
+    isBuiltIn: true,
+    isEnabled: true,
+    params: { ...DEFAULT_IMAGE_PARAMS_OPENAI },
+  },
+  {
+    id: 'gpt-image-1-mini-edit',
+    apiModel: 'gpt-image-1-mini',
+    name: 'GPT Image 1 Mini (编辑)',
+    type: 'imageEdit',
+    providerId: 'antsk',
+    endpoint: '/v1/images/generations',
+    description: '独立配置的图片编辑模型（仅用于基于参考图的内容修改与生成）',
+    isBuiltIn: true,
+    isEnabled: true,
+    params: { ...DEFAULT_IMAGE_PARAMS_OPENAI },
+  },
+];
+
+/**
  * 内置视频模型列表
  */
 export const BUILTIN_VIDEO_MODELS: VideoModelDefinition[] = [
@@ -578,6 +641,7 @@ export const BUILTIN_PROVIDERS: ModelProvider[] = [
 export const ALL_BUILTIN_MODELS: ModelDefinition[] = [
   ...BUILTIN_CHAT_MODELS,
   ...BUILTIN_IMAGE_MODELS,
+  ...BUILTIN_IMAGE_EDIT_MODELS,
   ...BUILTIN_VIDEO_MODELS,
   ...BUILTIN_AUDIO_MODELS,
 ];
@@ -588,7 +652,7 @@ export const ALL_BUILTIN_MODELS: ModelDefinition[] = [
 export const DEFAULT_ACTIVE_MODELS: ActiveModels = {
   chat: 'gpt-5.2',
   image: 'gemini-3-pro-image-preview',
-  imageEdit: 'gemini-3-pro-image-preview',
+  imageEdit: 'gemini-3-pro-image-preview-edit',
   video: 'sora-2',
   audio: 'gpt-audio-1.5',
 };

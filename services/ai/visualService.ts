@@ -850,8 +850,9 @@ export const generateImage = async (
   const imageApiFormat = getImageApiFormat(activeImageModel as any);
   const imageModelEndpointTemplate = activeImageModel?.endpoint || getDefaultImageEndpoint(imageApiFormat, imageModelId);
   const imageModelEndpoint = imageModelEndpointTemplate.replace('{model}', imageModelId);
-  const apiKey = checkApiKey('image', activeImageModel?.id);
-  const apiBase = getApiBase('image', activeImageModel?.id);
+  const modelTypeForApi = activeImageModel?.type || (hasAnyReference ? 'imageEdit' : 'image');
+  const apiKey = checkApiKey(modelTypeForApi, activeImageModel?.id);
+  const apiBase = getApiBase(modelTypeForApi, activeImageModel?.id);
 
   try {
     const normalizedUserPrompt = normalizePromptWhitespace(prompt);
